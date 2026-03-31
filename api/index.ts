@@ -6,10 +6,17 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+const distPath = path.join(process.cwd(), "dist");
 
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Expenses';
+const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
 
 app.use(express.json());
+
+if (isProd) {
+  // Serve static files from the Vite build output
+  app.use(express.static(distPath));
+}
 
 // Health check route
 app.get("/api/health", (req, res) => {
@@ -368,12 +375,6 @@ async function startServer() {
     } catch (e) {
       console.error("Failed to load Vite:", e);
     }
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
@@ -391,8 +392,22 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
+if (isProd) {
+  // SPA fallback - must be last
+  app.get("*", (req, res, next) => {
+    // Don't fallback for API routes
+    if (req.path.startsWith('/api')) return next();
+    
+    res.sendFile(path.join(distPath, "index.html"), (err) => {
+      if (err) {
+        res.status(404).send("Application not built. Please run 'npm run build'.");
+      }
+    });
+  });
+}
+
 export default app;
 
-if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+if (!isProd) {
   startServer();
 }
