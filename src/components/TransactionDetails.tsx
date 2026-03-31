@@ -24,6 +24,14 @@ export const TransactionDetails: React.FC<TransactionDetailsProps> = ({ expense,
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={0.2}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 100) {
+            onClose();
+          }
+        }}
         className="fixed bottom-0 left-0 right-0 z-[60] bg-[#0a0a0a] border-t border-white/[0.08] rounded-t-[32px] p-6 flex flex-col max-h-[90vh] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
       >
         <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-6" />
@@ -46,7 +54,7 @@ export const TransactionDetails: React.FC<TransactionDetailsProps> = ({ expense,
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto pb-safe">
+        <div className="flex-1 overflow-y-auto pb-32">
           <div className="flex flex-col items-center justify-center py-6 mb-6 bg-white/[0.02] rounded-3xl border border-white/[0.05]">
             <div className="w-16 h-16 bg-white/[0.05] border border-white/10 rounded-full flex items-center justify-center text-white/70 font-medium text-2xl mb-4">
               {expense.category?.charAt(0) || '?'}

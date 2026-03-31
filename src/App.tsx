@@ -5,7 +5,7 @@ import { VaultView } from './components/VaultView';
 import { Analysis } from './components/Analysis';
 import { Discovery } from './components/Discovery';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Lock, LogIn, KeyRound, Home, PieChart, Plus, RefreshCw, Compass, TrendingUp } from 'lucide-react';
+import { Shield, Lock, LogIn, KeyRound, Home, PieChart, Plus, RefreshCw, Compass, TrendingUp, LogOut } from 'lucide-react';
 import { ExpenseForm } from './components/ExpenseForm';
 
 export default function App() {
@@ -19,7 +19,8 @@ export default function App() {
     toggleStealthMode,
     appPin,
     fetchExpenses,
-    fetchCategories
+    fetchCategories,
+    logout
   } = useStore();
 
   const [tapCount, setTapCount] = useState(0);
@@ -28,12 +29,36 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'analysis' | 'discovery' | 'invest'>('home');
   const [isAdding, setIsAdding] = useState(false);
   const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const inactivityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-lock after 15 minutes of inactivity
+  useEffect(() => {
+    const resetInactivityTimeout = () => {
+      if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
+      if (isAuthenticated) {
+        inactivityTimeoutRef.current = setTimeout(() => {
+          logout();
+        }, 15 * 60 * 1000); // 15 minutes
+      }
+    };
+
+    resetInactivityTimeout();
+    
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, resetInactivityTimeout));
+    
+    return () => {
+      if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
+      events.forEach(e => window.removeEventListener(e, resetInactivityTimeout));
+    };
+  }, [isAuthenticated, logout]);
 
   useEffect(() => {
     if (isAuthenticated && appPin) {
       fetchExpenses();
       fetchCategories();
       useStore.getState().fetchFoodMaster();
+      useStore.getState().fetchSettings();
     }
   }, [isAuthenticated, appPin, activeTab]); // Added activeTab to trigger auto-update when opening analysis page
 
@@ -142,8 +167,16 @@ export default function App() {
         onClick={handleLogoTap}
         className="fixed top-12 left-6 w-12 h-12 z-[110] cursor-pointer"
       />
+      
+      {/* Logout Button */}
+      <button
+        onClick={() => logout()}
+        className="fixed top-8 right-6 z-[110] w-10 h-10 bg-white/[0.03] border border-white/[0.08] backdrop-blur-xl rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all"
+      >
+        <LogOut size={18} />
+      </button>
 
-      <div className="pb-28 relative z-10">
+      <div className="pb-28 relative z-0">
         {activeTab === 'home' && <Dashboard />}
         {activeTab === 'analysis' && <Analysis />}
         {activeTab === 'discovery' && <Discovery />}

@@ -37,6 +37,7 @@ interface AppState {
   fetchFoodMaster: () => Promise<void>;
   addFoodMaster: (type: 'Food' | 'Restaurant', value: string) => Promise<void>;
   
+  fetchSettings: () => Promise<void>;
   getUOBCycle: () => UOBCycle;
   getDashboardStats: () => DashboardStats;
 }
@@ -98,7 +99,21 @@ export const useStore = create<AppState>()(
           }
         }
       },
-      setMonthlyBudget: (budget) => set({ monthlyBudget: budget }),
+      setMonthlyBudget: async (budget) => {
+        set({ monthlyBudget: budget });
+        const state = get();
+        if (state.appPin) {
+          try {
+            await fetch('/api/settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'x-app-pin': state.appPin },
+              body: JSON.stringify({ key: 'MonthlyBudget', value: budget.toString() })
+            });
+          } catch (e) {
+            console.error('Failed to sync budget', e);
+          }
+        }
+      },
       toggleStealthMode: () => set((state) => ({ isStealthMode: !state.isStealthMode })),
       setAuthenticated: (status, pin) => set({ isAuthenticated: status, appPin: pin || get().appPin }),
       setLoading: (status) => set({ isLoading: status }),
@@ -218,6 +233,25 @@ export const useStore = create<AppState>()(
           });
         } catch (error) {
           console.error("Add food master failed:", error);
+        }
+      },
+
+      fetchSettings: async () => {
+        const pin = get().appPin;
+        if (!pin) return;
+        
+        try {
+          const response = await fetch('/api/settings', {
+            headers: { 'x-app-pin': pin }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.MonthlyBudget) {
+              set({ monthlyBudget: parseFloat(data.MonthlyBudget) });
+            }
+          }
+        } catch (error) {
+          console.error("Failed to fetch settings", error);
         }
       },
 

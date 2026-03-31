@@ -13,10 +13,16 @@ const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
 
 app.use(express.json());
 
-if (isProd) {
-  // Serve static files from the Vite build output
-  app.use(express.static(distPath));
-}
+  if (isProd) {
+    // Serve static files from the Vite build output
+    // Use a more robust path for Vercel
+    const staticPath = path.join(process.cwd(), "dist");
+    app.use(express.static(staticPath, {
+      maxAge: '1d',
+      immutable: true,
+      fallthrough: true // Allow falling through to the SPA fallback if file not found
+    }));
+  }
 
 // Health check route
 app.get("/api/health", (req, res) => {
@@ -123,9 +129,25 @@ const getGoogleAuth = async () => {
   });
 };
 
+// Rate limiter for PIN verification
+const failedAttempts = new Map<string, { count: number, lockedUntil: number }>();
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutes
+
 // Auth Route
 app.post("/api/auth/verify-pin", (req, res) => {
   try {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const attempt = failedAttempts.get(ip);
+    
+    if (attempt && attempt.lockedUntil > Date.now()) {
+      const remainingMinutes = Math.ceil((attempt.lockedUntil - Date.now()) / 60000);
+      return res.status(429).json({ 
+        success: false, 
+        error: `Too many failed attempts. Try again in ${remainingMinutes} minutes.` 
+      });
+    }
+
     const { pin } = req.body;
     console.log("Verify PIN attempt received");
     
@@ -145,10 +167,23 @@ app.post("/api/auth/verify-pin", (req, res) => {
 
     if (String(pin).trim() === serverPin) {
       console.log("PIN verification successful");
+      failedAttempts.delete(ip); // Reset on success
       res.json({ success: true });
     } else {
       console.log("PIN verification failed: Invalid PIN");
-      res.status(401).json({ success: false, error: "Invalid PIN" });
+      
+      // Increment failed attempts
+      const newCount = (attempt?.count || 0) + 1;
+      if (newCount >= MAX_ATTEMPTS) {
+        failedAttempts.set(ip, { count: newCount, lockedUntil: Date.now() + LOCKOUT_TIME });
+        return res.status(429).json({ 
+          success: false, 
+          error: `Too many failed attempts. Try again in 15 minutes.` 
+        });
+      } else {
+        failedAttempts.set(ip, { count: newCount, lockedUntil: 0 });
+        res.status(401).json({ success: false, error: `Invalid PIN. ${MAX_ATTEMPTS - newCount} attempts remaining.` });
+      }
     }
   } catch (error: any) {
     console.error("Verify PIN error:", error);
@@ -184,13 +219,13 @@ app.get("/api/categories", requirePin, async (req, res) => {
         valueInputOption: "USER_ENTERED",
         requestBody: { values: defaultCats.map(c => [c]) },
       });
-      return res.json(defaultCats);
+      return res.json(defaultCats.sort((a, b) => a.localeCompare(b)));
     }
     
-    res.json(categories);
+    res.json(categories.sort((a: string, b: string) => a.localeCompare(b)));
   } catch (error: any) {
     console.error("Sheets error (categories):", error.message || error);
-    res.json(['Food', 'Transport', 'Groceries', 'Entertainment', 'Bills', 'Investment', 'Others']);
+    res.json(['Food', 'Transport', 'Groceries', 'Entertainment', 'Bills', 'Investment', 'Others'].sort((a, b) => a.localeCompare(b)));
   }
 });
 
@@ -220,6 +255,85 @@ app.put("/api/categories", requirePin, async (req, res) => {
   } catch (error: any) {
     console.error("Sheets error (categories update):", error.message || error);
     res.status(500).json({ error: "Failed to update categories", details: error.message });
+  }
+});
+
+app.get("/api/settings", requirePin, async (req, res) => {
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'Settings', ['Key', 'Value']);
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `Settings!A:B`,
+    });
+    
+    const values = response.data.values || [];
+    const settings: Record<string, string> = {};
+    
+    values.forEach(row => {
+      if (row[0] && row[0] !== 'Key') {
+        settings[row[0]] = row[1] || '';
+      }
+    });
+    
+    res.json(settings);
+  } catch (error: any) {
+    console.error("Sheets error (settings):", error.message || error);
+    res.json({});
+  }
+});
+
+app.put("/api/settings", requirePin, async (req, res) => {
+  const { key, value } = req.body;
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'Settings', ['Key', 'Value']);
+    
+    // Get current settings to find the row
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `Settings!A:B`,
+    });
+    
+    const values = response.data.values || [];
+    let rowIndex = -1;
+    
+    for (let i = 0; i < values.length; i++) {
+      if (values[i][0] === key) {
+        rowIndex = i + 1; // 1-indexed
+        break;
+      }
+    }
+    
+    if (rowIndex !== -1) {
+      // Update existing
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: process.env.GOOGLE_SHEET_ID,
+        range: `Settings!B${rowIndex}`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [[value]] },
+      });
+    } else {
+      // Append new
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: process.env.GOOGLE_SHEET_ID,
+        range: `Settings!A:B`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [[key, value]] },
+      });
+    }
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error (settings update):", error.message || error);
+    res.status(500).json({ error: "Failed to update settings", details: error.message });
   }
 });
 
@@ -395,8 +509,8 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 if (isProd) {
   // SPA fallback - must be last
   app.get("*", (req, res, next) => {
-    // Don't fallback for API routes
-    if (req.path.startsWith('/api')) return next();
+    // Don't fallback for API routes or files that should have been caught by express.static
+    if (req.path.startsWith('/api') || req.path.includes('.')) return next();
     
     res.sendFile(path.join(distPath, "index.html"), (err) => {
       if (err) {

@@ -158,6 +158,14 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={0.2}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 100) {
+            onClose();
+          }
+        }}
         className="fixed bottom-0 left-0 right-0 z-[70] bg-[#0a0a0a] border-t border-white/[0.08] rounded-t-[32px] p-6 flex flex-col max-h-[90vh] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
       >
         <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-6" />
@@ -169,7 +177,7 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col gap-5 overflow-y-auto pb-safe">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col gap-5 overflow-y-auto pb-32">
           <div className="space-y-2">
             <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">Amount</label>
             <div className="relative">

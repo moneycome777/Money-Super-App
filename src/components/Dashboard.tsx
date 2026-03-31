@@ -262,7 +262,7 @@ export const Dashboard: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 z-50 bg-[#030303] flex flex-col"
+            className="fixed inset-0 z-[60] bg-[#030303] flex flex-col"
           >
             <div className="bg-white/[0.03] backdrop-blur-xl px-6 pt-14 pb-4 border-b border-white/[0.08] flex flex-col shrink-0">
               <div className="flex justify-between items-center mb-4">
@@ -301,7 +301,7 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-6 pb-safe">
+            <div className="flex-1 overflow-y-auto p-6 pb-32">
               <div className="bg-white/[0.03] backdrop-blur-xl rounded-3xl border border-white/[0.08] shadow-lg overflow-hidden">
                 {filteredExpenses.length > 0 ? filteredExpenses.map((exp, i) => (
                   <div 
