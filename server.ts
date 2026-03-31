@@ -7,19 +7,13 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-console.log("Server initializing...");
-console.log("Environment check:");
-console.log("- APP_PIN:", process.env.APP_PIN ? "Set" : "Not set");
-console.log("- GOOGLE_SHEET_ID:", process.env.GOOGLE_SHEET_ID ? "Set" : "Not set");
-console.log("- GOOGLE_SERVICE_ACCOUNT_EMAIL:", process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? "Set" : "Not set");
-console.log("- GOOGLE_PRIVATE_KEY:", process.env.GOOGLE_PRIVATE_KEY ? "Set (length: " + (process.env.GOOGLE_PRIVATE_KEY?.length || 0) + ")" : "Not set");
-
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Expenses';
 
 app.use(express.json());
 
 // Health check route
 app.get("/api/health", (req, res) => {
+  console.log("Health check requested");
   res.json({ 
     status: "ok", 
     timestamp: new Date().toISOString(),
@@ -28,7 +22,9 @@ app.get("/api/health", (req, res) => {
       hasSheetId: !!process.env.GOOGLE_SHEET_ID,
       hasEmail: !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
       hasKey: !!process.env.GOOGLE_PRIVATE_KEY,
-      nodeEnv: process.env.NODE_ENV
+      keyLength: process.env.GOOGLE_PRIVATE_KEY?.length || 0,
+      nodeEnv: process.env.NODE_ENV,
+      isVercel: !!process.env.VERCEL
     }
   });
 });
@@ -360,13 +356,18 @@ app.post("/api/food-master", requirePin, async (req, res) => {
 });
 
 async function startServer() {
-  if (process.env.NODE_ENV !== "production") {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+  // Only import Vite in non-production environments to avoid Vercel build issues
+  if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (e) {
+      console.error("Failed to load Vite:", e);
+    }
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
