@@ -1,0 +1,5 @@
+{
+  "name": "Expense SuperApp",
+  "description": "Personal expense tracker with UOB One cashback logic and Stealth Mode vault.",
+  "requestFramePermissions": []
+}
