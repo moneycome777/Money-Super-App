@@ -118,27 +118,34 @@ export const useStore = create<AppState>()(
             if (response.status === 401) {
               set({ isAuthenticated: false });
             }
-            throw new Error("Failed to fetch");
+            const text = await response.text();
+            throw new Error(`Fetch failed: ${response.status} ${text.slice(0, 100)}`);
           }
           
-          const data = await response.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const mapped = data.slice(1).map((row: any, index: number) => ({
-              rowIndex: index + 2,
-              date: row[0],
-              amount: parseFloat(row[1]),
-              category: row[2],
-              paymentMethod: row[3],
-              sharedFlag: row[4] === 'TRUE',
-              collectedAmount: parseFloat(row[5] || '0'),
-              togetherFlag: row[6] === 'TRUE',
-              isInvestment: row[7] === 'TRUE',
-              isNeed: row[8] === 'TRUE',
-              description: row[9] || '',
-              restaurant: row[10] || '',
-              tier: row[11] || ''
-            }));
-            set({ expenses: mapped });
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+              const mapped = data.slice(1).map((row: any, index: number) => ({
+                rowIndex: index + 2,
+                date: row[0],
+                amount: parseFloat(row[1]),
+                category: row[2],
+                paymentMethod: row[3],
+                sharedFlag: row[4] === 'TRUE',
+                collectedAmount: parseFloat(row[5] || '0'),
+                togetherFlag: row[6] === 'TRUE',
+                isInvestment: row[7] === 'TRUE',
+                isNeed: row[8] === 'TRUE',
+                description: row[9] || '',
+                restaurant: row[10] || '',
+                tier: row[11] || ''
+              }));
+              set({ expenses: mapped });
+            }
+          } else {
+            const text = await response.text();
+            console.error("Non-JSON response from expenses:", text);
           }
         } catch (error) {
           console.error("Fetch failed:", error);
@@ -156,9 +163,12 @@ export const useStore = create<AppState>()(
             headers: { 'x-app-pin': pin }
           });
           if (response.ok) {
-            const data = await response.json();
-            if (Array.isArray(data) && data.length > 0) {
-              set({ categories: data });
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+              const data = await response.json();
+              if (Array.isArray(data) && data.length > 0) {
+                set({ categories: data });
+              }
             }
           }
         } catch (error) {
@@ -175,8 +185,11 @@ export const useStore = create<AppState>()(
             headers: { 'x-app-pin': pin }
           });
           if (response.ok) {
-            const data = await response.json();
-            set({ foodTypes: data.foodTypes || [], restaurants: data.restaurants || [] });
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+              const data = await response.json();
+              set({ foodTypes: data.foodTypes || [], restaurants: data.restaurants || [] });
+            }
           }
         } catch (error) {
           console.error("Fetch food master failed:", error);

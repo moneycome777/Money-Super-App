@@ -1,13 +1,37 @@
 import express from "express";
 import path from "path";
-import { google } from "googleapis";
 import dotenv from "dotenv";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+console.log("Server initializing...");
+console.log("Environment check:");
+console.log("- APP_PIN:", process.env.APP_PIN ? "Set" : "Not set");
+console.log("- GOOGLE_SHEET_ID:", process.env.GOOGLE_SHEET_ID ? "Set" : "Not set");
+console.log("- GOOGLE_SERVICE_ACCOUNT_EMAIL:", process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ? "Set" : "Not set");
+console.log("- GOOGLE_PRIVATE_KEY:", process.env.GOOGLE_PRIVATE_KEY ? "Set (length: " + (process.env.GOOGLE_PRIVATE_KEY?.length || 0) + ")" : "Not set");
+
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Expenses';
+
+app.use(express.json());
+
+// Health check route
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    timestamp: new Date().toISOString(),
+    env: {
+      hasPin: !!process.env.APP_PIN,
+      hasSheetId: !!process.env.GOOGLE_SHEET_ID,
+      hasEmail: !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      hasKey: !!process.env.GOOGLE_PRIVATE_KEY,
+      nodeEnv: process.env.NODE_ENV
+    }
+  });
+});
 
 // Helper to ensure a sheet exists and has headers
 async function ensureSheet(sheets: any, spreadsheetId: string, title: string, headers: any[]) {
@@ -48,19 +72,26 @@ async function ensureSheet(sheets: any, spreadsheetId: string, title: string, he
   }
 }
 
-app.use(express.json());
-
 // Middleware to verify App PIN
 const requirePin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const clientPin = req.headers['x-app-pin'];
-  const serverPin = process.env.APP_PIN;
+  let serverPin = process.env.APP_PIN || '';
+  
+  // Remove surrounding quotes if they exist
+  if (serverPin.startsWith('"') && serverPin.endsWith('"')) {
+    serverPin = serverPin.slice(1, -1);
+  } else if (serverPin.startsWith("'") && serverPin.endsWith("'")) {
+    serverPin = serverPin.slice(1, -1);
+  }
+  serverPin = serverPin.trim();
   
   if (!serverPin) {
     console.warn("APP_PIN is not set in environment variables!");
-    return res.status(500).json({ error: "Server configuration error" });
+    return res.status(500).json({ error: "Server configuration error: APP_PIN missing" });
   }
   
   if (clientPin !== serverPin) {
+    console.log(`PIN mismatch: client sent ${clientPin ? 'something' : 'nothing'}, server has ${serverPin ? 'something' : 'nothing'}`);
     return res.status(401).json({ error: "Unauthorized: Invalid PIN" });
   }
   
@@ -68,7 +99,8 @@ const requirePin = (req: express.Request, res: express.Response, next: express.N
 };
 
 // Initialize Google Auth with Service Account
-const getGoogleAuth = () => {
+const getGoogleAuth = async () => {
+  const { google } = await import("googleapis");
   // Handle newlines in private key from env variables
   let privateKey = process.env.GOOGLE_PRIVATE_KEY || '';
   
@@ -90,18 +122,42 @@ const getGoogleAuth = () => {
 
 // Auth Route
 app.post("/api/auth/verify-pin", (req, res) => {
-  const { pin } = req.body;
-  if (pin === process.env.APP_PIN) {
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ success: false, error: "Invalid PIN" });
+  try {
+    const { pin } = req.body;
+    console.log("Verify PIN attempt received");
+    
+    let serverPin = process.env.APP_PIN || '';
+    // Remove surrounding quotes if they exist
+    if (serverPin.startsWith('"') && serverPin.endsWith('"')) {
+      serverPin = serverPin.slice(1, -1);
+    } else if (serverPin.startsWith("'") && serverPin.endsWith("'")) {
+      serverPin = serverPin.slice(1, -1);
+    }
+    serverPin = serverPin.trim();
+    
+    if (!serverPin) {
+      console.error("APP_PIN environment variable is missing");
+      return res.status(500).json({ success: false, error: "Server configuration error: APP_PIN missing" });
+    }
+
+    if (String(pin).trim() === serverPin) {
+      console.log("PIN verification successful");
+      res.json({ success: true });
+    } else {
+      console.log("PIN verification failed: Invalid PIN");
+      res.status(401).json({ success: false, error: "Invalid PIN" });
+    }
+  } catch (error: any) {
+    console.error("Verify PIN error:", error);
+    res.status(500).json({ success: false, error: "Internal server error", details: error.message });
   }
 });
 
 // Sheets API Proxy
 app.get("/api/categories", requirePin, async (req, res) => {
   try {
-    const auth = getGoogleAuth();
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
     await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'Categories', ['Category']);
@@ -138,7 +194,8 @@ app.get("/api/categories", requirePin, async (req, res) => {
 app.put("/api/categories", requirePin, async (req, res) => {
   const { categories } = req.body;
   try {
-    const auth = getGoogleAuth();
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
     await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'Categories', ['Category']);
@@ -165,7 +222,8 @@ app.put("/api/categories", requirePin, async (req, res) => {
 
 app.get("/api/expenses", requirePin, async (req, res) => {
   try {
-    const auth = getGoogleAuth();
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
     await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier"]);
@@ -185,7 +243,8 @@ app.post("/api/expenses", requirePin, async (req, res) => {
   const { values } = req.body;
 
   try {
-    const auth = getGoogleAuth();
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
     await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier"]);
@@ -208,7 +267,8 @@ app.put("/api/expenses/:row", requirePin, async (req, res) => {
   const { values } = req.body;
 
   try {
-    const auth = getGoogleAuth();
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
     await sheets.spreadsheets.values.update({
@@ -229,7 +289,8 @@ app.put("/api/expenses/:row/clear", requirePin, async (req, res) => {
   const { collectedAmount } = req.body;
 
   try {
-    const auth = getGoogleAuth();
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
     // Column F is CollectedAmount (A=1, B=2, C=3, D=4, E=5, F=6)
@@ -248,7 +309,8 @@ app.put("/api/expenses/:row/clear", requirePin, async (req, res) => {
 
 app.get("/api/food-master", requirePin, async (req, res) => {
   try {
-    const auth = getGoogleAuth();
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
     await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'Food_Master', ['Type', 'Value']);
@@ -277,7 +339,8 @@ app.get("/api/food-master", requirePin, async (req, res) => {
 app.post("/api/food-master", requirePin, async (req, res) => {
   const { type, value } = req.body;
   try {
-    const auth = getGoogleAuth();
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
     await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'Food_Master', ['Type', 'Value']);
@@ -316,6 +379,16 @@ async function startServer() {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
+
+// Global error handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Global error handler caught:", err);
+  res.status(500).json({ 
+    error: "Internal Server Error", 
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
 
 export default app;
 

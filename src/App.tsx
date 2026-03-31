@@ -49,14 +49,22 @@ export default function App() {
         body: JSON.stringify({ pin: pinInput })
       });
       
-      const data = await response.json();
-      if (data.success) {
-        setAuthenticated(true, pinInput);
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const data = await response.json();
+        if (data.success) {
+          setAuthenticated(true, pinInput);
+        } else {
+          setError(data.error || "Incorrect PIN");
+        }
       } else {
-        setError("Incorrect PIN");
+        const text = await response.text();
+        console.error("Non-JSON response:", text);
+        setError(`Server error: ${response.status} ${response.statusText}`);
       }
-    } catch (error) {
-      setError("Connection error");
+    } catch (error: any) {
+      console.error("Auth error:", error);
+      setError(`Connection error: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
