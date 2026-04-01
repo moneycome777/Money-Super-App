@@ -171,7 +171,7 @@ export default function App() {
       {/* Logout Button */}
       <button
         onClick={() => logout()}
-        className="fixed top-8 right-6 z-[110] w-10 h-10 bg-white/[0.03] border border-white/[0.08] backdrop-blur-xl rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all"
+        className="fixed top-2 right-6 z-[110] w-10 h-10 bg-white/[0.03] border border-white/[0.08] backdrop-blur-xl rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all"
       >
         <LogOut size={18} />
       </button>

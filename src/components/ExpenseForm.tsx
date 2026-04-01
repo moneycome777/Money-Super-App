@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { Expense } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,8 +16,30 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
   const [isAddingNewFoodType, setIsAddingNewFoodType] = useState(false);
   const [isAddingNewRestaurant, setIsAddingNewRestaurant] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+  
+  const newFoodTypeRef = useRef<HTMLInputElement>(null);
+  const newRestaurantRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isAddingNewFoodType) {
+      setTimeout(() => newFoodTypeRef.current?.focus(), 300);
+    }
+  }, [isAddingNewFoodType]);
+
+  useEffect(() => {
+    if (isAddingNewRestaurant) {
+      setTimeout(() => newRestaurantRef.current?.focus(), 300);
+    }
+  }, [isAddingNewRestaurant]);
+
+  const getLocalDateString = () => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split('T')[0];
+  };
+
   const [formData, setFormData] = useState<Expense>(initialExpense || {
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateString(),
     amount: 0,
     category: 'Food',
     paymentMethod: 'CASH/OTHER',
@@ -185,6 +207,7 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
               <input
                 type="number"
                 step="0.01"
+                inputMode="decimal"
                 required
                 className="w-full pl-14 pr-5 py-5 bg-white/[0.03] rounded-2xl border border-white/[0.08] text-3xl font-semibold text-white focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all placeholder:text-white/20"
                 placeholder="0.00"
@@ -211,7 +234,7 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
               >
-                {categories.map(cat => (
+                {[...categories].sort((a, b) => a === 'Food' ? -1 : b === 'Food' ? 1 : a.localeCompare(b)).map(cat => (
                   <option key={cat} value={cat} className="bg-[#141414] text-white">{cat}</option>
                 ))}
               </select>
@@ -234,12 +257,12 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
                 {isAddingNewFoodType ? (
                   <div className="flex gap-2">
                     <input
+                      ref={newFoodTypeRef}
                       type="text"
                       className="flex-1 p-4 bg-white/[0.03] rounded-2xl border border-white/[0.08] outline-none font-medium text-white focus:border-blue-500/50 transition-all placeholder:text-white/20"
                       placeholder="e.g. Sushi, Thai..."
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      autoFocus
                     />
                     <button 
                       type="button"
@@ -279,12 +302,12 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
                 {isAddingNewRestaurant ? (
                   <div className="flex gap-2">
                     <input
+                      ref={newRestaurantRef}
                       type="text"
                       className="flex-1 p-4 bg-white/[0.03] rounded-2xl border border-white/[0.08] outline-none font-medium text-white focus:border-blue-500/50 transition-all placeholder:text-white/20"
                       placeholder="e.g. Sushizanmai..."
                       value={formData.restaurant || ''}
                       onChange={(e) => setFormData({ ...formData, restaurant: e.target.value })}
-                      autoFocus
                     />
                     <button 
                       type="button"

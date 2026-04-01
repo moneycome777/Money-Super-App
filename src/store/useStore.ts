@@ -300,16 +300,16 @@ export const useStore = create<AppState>()(
             } else {
               acc.wantsSpent += amount;
             }
+
+            // Together Spent
+            if (exp.togetherFlag) {
+              acc.togetherSpent += exp.amount;
+            }
           }
 
           // UOB Spent (Current UOB Cycle)
           if (isWithinInterval(expDate, { start: uobCycle.start, end: uobCycle.end }) && exp.paymentMethod === 'UOB_ONE') {
             acc.uobSpent += exp.amount;
-          }
-
-          // Together Spent
-          if (exp.togetherFlag) {
-            acc.togetherSpent += exp.amount;
           }
 
           return acc;
