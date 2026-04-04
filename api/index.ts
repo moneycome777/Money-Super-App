@@ -401,6 +401,123 @@ app.put("/api/expenses/:row", requirePin, async (req, res) => {
   }
 });
 
+// Life Log API Routes
+app.get("/api/life-log", requirePin, async (req, res) => {
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'life_log', ["Timestamp", "Raw_Text", "Tags", "Due_Date", "AI_Summary", "Status"]);
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `life_log!A:F`,
+    });
+    
+    const values = response.data.values || [];
+    // Skip header row and filter out completed items
+    const dataRows = values.slice(1).filter(row => row[5] !== 'Completed');
+    const recentRows = dataRows.slice(-1000);
+    
+    res.json(recentRows);
+  } catch (error: any) {
+    console.error("Sheets error (life-log):", error.message || error);
+    res.status(500).json({ error: "Failed to fetch life log data", details: error.message });
+  }
+});
+
+app.post("/api/life-log", requirePin, async (req, res) => {
+  const { values } = req.body;
+
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'life_log', ["Timestamp", "Raw_Text", "Tags", "Due_Date", "AI_Summary", "Status"]);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `life_log!A:A`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values },
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error (life-log post):", error.message || error);
+    res.status(500).json({ error: "Failed to save life log data", details: error.message });
+  }
+});
+
+app.put("/api/life-log/:row/complete", requirePin, async (req, res) => {
+  const row = parseInt(req.params.row);
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `life_log!F${row}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [['Completed']] },
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error (life-log complete):", error.message || error);
+    res.status(500).json({ error: "Failed to mark life log as completed", details: error.message });
+  }
+});
+
+// Vault API Routes
+app.get("/api/vault", requirePin, async (req, res) => {
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, '_stealth_vault', ["Timestamp", "Type", "Goal_Name", "Amount", "Due_Date", "Monthly_Contribution"]);
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `_stealth_vault!A:F`,
+    });
+    
+    const values = response.data.values || [];
+    // Skip header row
+    const dataRows = values.slice(1);
+    
+    res.json(dataRows);
+  } catch (error: any) {
+    console.error("Sheets error (vault):", error.message || error);
+    res.status(500).json({ error: "Failed to fetch vault data", details: error.message });
+  }
+});
+
+app.post("/api/vault", requirePin, async (req, res) => {
+  const { values } = req.body;
+
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, '_stealth_vault', ["Timestamp", "Type", "Goal_Name", "Amount", "Due_Date", "Monthly_Contribution"]);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `_stealth_vault!A:A`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values },
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error (vault post):", error.message || error);
+    res.status(500).json({ error: "Failed to save vault data", details: error.message });
+  }
+});
+
 app.put("/api/expenses/:row/clear", requirePin, async (req, res) => {
   const row = parseInt(req.params.row);
   const { collectedAmount } = req.body;

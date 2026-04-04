@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { UOBWidget } from './UOBWidget';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Heart, ChevronRight, CheckCircle2, RefreshCw, X, Target, Coffee } from 'lucide-react';
+import { Users, Heart, ChevronRight, CheckCircle2, RefreshCw, X, Target, Coffee, Eye, EyeOff } from 'lucide-react';
 import { Expense } from '../types';
 import { TransactionDetails } from './TransactionDetails';
 import { ExpenseForm } from './ExpenseForm';
@@ -27,6 +27,22 @@ export const Dashboard: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSettingBudget, setIsSettingBudget] = useState(false);
   const [budgetInput, setBudgetInput] = useState(monthlyBudget.toString());
+  const [isBalanceHidden, setIsBalanceHidden] = useState(true);
+  const [tapCount, setTapCount] = useState(0);
+  const tapTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const { toggleStealthMode } = useStore();
+
+  const handleBalanceTap = () => {
+    setTapCount(prev => prev + 1);
+    if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+    
+    tapTimeoutRef.current = setTimeout(() => {
+      if (tapCount + 1 >= 5) {
+        toggleStealthMode();
+      }
+      setTapCount(0);
+    }, 500);
+  };
 
   const budgetProgress = monthlyBudget > 0 ? Math.min((stats.monthlySpent / monthlyBudget) * 100, 100) : 0;
   const isOverBudget = monthlyBudget > 0 && stats.monthlySpent > monthlyBudget;
@@ -61,11 +77,21 @@ export const Dashboard: React.FC = () => {
       <div className="px-6 pt-14 pb-6 mb-6 relative z-10">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <p className="text-sm font-medium text-white/50 uppercase tracking-wider mb-1">Total Balance</p>
+            <div className="flex items-center gap-2 mb-1">
+              <p 
+                onClick={handleBalanceTap}
+                className="text-sm font-medium text-white/50 uppercase tracking-wider cursor-pointer select-none"
+              >
+                Total Balance
+              </p>
+              <button onClick={() => setIsBalanceHidden(!isBalanceHidden)} className="text-white/40 hover:text-white/70 transition-colors">
+                {isBalanceHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="text-2xl font-medium text-white/40">RM</span>
               <h1 className="text-5xl font-semibold text-white tracking-tight">
-                {stats.monthlySpent.toFixed(2)}
+                {isBalanceHidden ? '***.**' : stats.monthlySpent.toFixed(2)}
               </h1>
             </div>
           </div>
@@ -97,7 +123,7 @@ export const Dashboard: React.FC = () => {
             <div className="text-right">
               {monthlyBudget > 0 ? (
                 <span className={`text-sm font-medium ${isOverBudget ? 'text-red-400' : 'text-white'}`}>
-                  RM {stats.monthlySpent.toFixed(0)} <span className="text-white/40">/ {monthlyBudget}</span>
+                  RM {isBalanceHidden ? '***' : stats.monthlySpent.toFixed(0)} <span className="text-white/40">/ {isBalanceHidden ? '***' : monthlyBudget}</span>
                 </span>
               ) : (
                 <span className="text-xs font-medium text-blue-400">Set Budget</span>
@@ -128,7 +154,7 @@ export const Dashboard: React.FC = () => {
               </div>
               <p className="text-xs font-medium text-white/50 uppercase tracking-wider">Needs</p>
             </div>
-            <p className="text-2xl font-semibold text-white tracking-tight relative z-10">RM {stats.needsSpent.toFixed(2)}</p>
+            <p className="text-2xl font-semibold text-white tracking-tight relative z-10">RM {isBalanceHidden ? '***.**' : stats.needsSpent.toFixed(2)}</p>
             <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider relative z-10">Mandatory</p>
           </div>
           <div className="bg-white/[0.03] backdrop-blur-xl p-5 rounded-3xl border border-white/[0.08] shadow-lg relative overflow-hidden">
@@ -139,7 +165,7 @@ export const Dashboard: React.FC = () => {
               </div>
               <p className="text-xs font-medium text-white/50 uppercase tracking-wider">Wants</p>
             </div>
-            <p className="text-2xl font-semibold text-white tracking-tight relative z-10">RM {stats.wantsSpent.toFixed(2)}</p>
+            <p className="text-2xl font-semibold text-white tracking-tight relative z-10">RM {isBalanceHidden ? '***.**' : stats.wantsSpent.toFixed(2)}</p>
             <p className="text-[10px] text-white/40 mt-1 uppercase tracking-wider relative z-10">Non-Mandatory</p>
           </div>
         </div>
@@ -152,7 +178,7 @@ export const Dashboard: React.FC = () => {
               </div>
               <p className="text-xs font-medium text-white/50 uppercase tracking-wider">Receivable</p>
             </div>
-            <p className="text-2xl font-semibold text-white tracking-tight">RM {stats.receivable.toFixed(2)}</p>
+            <p className="text-2xl font-semibold text-white tracking-tight">RM {isBalanceHidden ? '***.**' : stats.receivable.toFixed(2)}</p>
           </div>
           <div className="bg-white/[0.03] backdrop-blur-xl p-5 rounded-3xl border border-white/[0.08] shadow-lg">
             <div className="flex items-center gap-3 mb-4">
@@ -161,7 +187,7 @@ export const Dashboard: React.FC = () => {
               </div>
               <p className="text-xs font-medium text-white/50 uppercase tracking-wider">Together</p>
             </div>
-            <p className="text-2xl font-semibold text-white tracking-tight">RM {stats.togetherSpent.toFixed(2)}</p>
+            <p className="text-2xl font-semibold text-white tracking-tight">RM {isBalanceHidden ? '***.**' : stats.togetherSpent.toFixed(2)}</p>
           </div>
         </div>
 
@@ -184,7 +210,7 @@ export const Dashboard: React.FC = () => {
                       <p className="text-xs text-white/40 mt-1">{exp.description || new Date(exp.date).toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-4">
-                      <p className="font-semibold text-white">RM {owed.toFixed(2)}</p>
+                      <p className="font-semibold text-white">RM {isBalanceHidden ? '***.**' : owed.toFixed(2)}</p>
                       <button 
                         onClick={() => exp.rowIndex && handleClearReceivable(exp.rowIndex, exp.amount / 2)}
                         className="p-2.5 bg-white/5 rounded-full text-white/40 hover:text-green-400 hover:bg-green-500/10 transition-colors border border-white/5"
@@ -246,7 +272,7 @@ export const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right shrink-0 ml-3">
-                  <p className="font-semibold text-white tracking-wide">-RM {exp.amount.toFixed(2)}</p>
+                  <p className="font-semibold text-white tracking-wide">-RM {isBalanceHidden ? '***.**' : exp.amount.toFixed(2)}</p>
                 </div>
               </motion.div>
             ))}
@@ -334,7 +360,7 @@ export const Dashboard: React.FC = () => {
                       </div>
                     </div>
                     <div className="text-right shrink-0 ml-3">
-                      <p className="font-semibold text-white tracking-wide">-RM {exp.amount.toFixed(2)}</p>
+                      <p className="font-semibold text-white tracking-wide">-RM {isBalanceHidden ? '***.**' : exp.amount.toFixed(2)}</p>
                     </div>
                   </div>
                 )) : (

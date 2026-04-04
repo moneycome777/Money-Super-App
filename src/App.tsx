@@ -4,8 +4,9 @@ import { Dashboard } from './components/Dashboard';
 import { VaultView } from './components/VaultView';
 import { Analysis } from './components/Analysis';
 import { Discovery } from './components/Discovery';
+import { LifeLog } from './components/LifeLog';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Lock, LogIn, KeyRound, Home, PieChart, Plus, RefreshCw, Compass, TrendingUp, LogOut } from 'lucide-react';
+import { Shield, Lock, LogIn, KeyRound, Home, PieChart, Plus, RefreshCw, Compass, TrendingUp, LogOut, Activity } from 'lucide-react';
 import { ExpenseForm } from './components/ExpenseForm';
 
 export default function App() {
@@ -23,12 +24,10 @@ export default function App() {
     logout
   } = useStore();
 
-  const [tapCount, setTapCount] = useState(0);
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'home' | 'analysis' | 'discovery' | 'invest'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'analysis' | 'discovery' | 'lifelog'>('home');
   const [isAdding, setIsAdding] = useState(false);
-  const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const inactivityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-lock after 15 minutes of inactivity
@@ -60,7 +59,7 @@ export default function App() {
       useStore.getState().fetchFoodMaster();
       useStore.getState().fetchSettings();
     }
-  }, [isAuthenticated, appPin, activeTab]); // Added activeTab to trigger auto-update when opening analysis page
+  }, [isAuthenticated, appPin]);
 
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,18 +92,6 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLogoTap = () => {
-    setTapCount(prev => prev + 1);
-    if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
-    
-    tapTimeoutRef.current = setTimeout(() => {
-      if (tapCount + 1 >= 3) {
-        toggleStealthMode();
-      }
-      setTapCount(0);
-    }, 500);
   };
 
   // Auto-lock logic
@@ -162,12 +149,6 @@ export default function App() {
       {/* Ambient Glows */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none z-0" />
       
-      {/* Invisible Logo Tap Area */}
-      <div 
-        onClick={handleLogoTap}
-        className="fixed top-12 left-6 w-12 h-12 z-[110] cursor-pointer"
-      />
-      
       {/* Logout Button */}
       <button
         onClick={() => logout()}
@@ -180,15 +161,7 @@ export default function App() {
         {activeTab === 'home' && <Dashboard />}
         {activeTab === 'analysis' && <Analysis />}
         {activeTab === 'discovery' && <Discovery />}
-        {activeTab === 'invest' && (
-          <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] text-center">
-            <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-400 mb-4">
-              <TrendingUp size={32} />
-            </div>
-            <h2 className="text-xl font-semibold text-white mb-2">Investment Module</h2>
-            <p className="text-white/50 text-sm">Coming soon. Track your portfolio and assets here.</p>
-          </div>
-        )}
+        {activeTab === 'lifelog' && <LifeLog />}
       </div>
 
       {/* Bottom Navigation */}
@@ -227,11 +200,11 @@ export default function App() {
         </button>
 
         <button 
-          onClick={() => setActiveTab('invest')}
-          className={`flex flex-col items-center gap-1.5 w-16 transition-colors ${activeTab === 'invest' ? 'text-white' : 'text-white/40'}`}
+          onClick={() => setActiveTab('lifelog')}
+          className={`flex flex-col items-center gap-1.5 w-16 transition-colors ${activeTab === 'lifelog' ? 'text-white' : 'text-white/40'}`}
         >
-          <TrendingUp size={22} strokeWidth={1.5} />
-          <span className="text-[10px] font-medium tracking-wide">Invest</span>
+          <Activity size={22} strokeWidth={1.5} />
+          <span className="text-[10px] font-medium tracking-wide">Pulse</span>
         </button>
       </div>
 

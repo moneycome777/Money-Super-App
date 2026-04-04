@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Expense, UOBCycle, DashboardStats } from '../types';
+import { Expense, UOBCycle, DashboardStats, LifeLogEntry } from '../types';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -13,6 +13,10 @@ import {
 
 interface AppState {
   expenses: Expense[];
+  lifeLogs: LifeLogEntry[];
+  hasFetchedLifeLogs: boolean;
+  vaultEntries: VaultEntry[];
+  hasFetchedVaultEntries: boolean;
   categories: string[];
   foodTypes: string[];
   restaurants: string[];
@@ -20,19 +24,28 @@ interface AppState {
   isAuthenticated: boolean;
   isLoading: boolean;
   appPin: string | null;
+  vaultPin: string | null;
   monthlyBudget: number;
   
   setExpenses: (expenses: Expense[]) => void;
   addExpense: (expense: Expense) => void;
   updateExpense: (rowIndex: number, updates: Partial<Expense>) => void;
+  setLifeLogs: (logs: LifeLogEntry[]) => void;
+  addLifeLog: (log: LifeLogEntry) => void;
+  setVaultEntries: (entries: VaultEntry[]) => void;
+  addVaultEntry: (entry: VaultEntry) => void;
   addCategory: (category: string) => void;
   removeCategory: (category: string) => void;
   setMonthlyBudget: (budget: number) => void;
+  setVaultPin: (pin: string) => void;
   toggleStealthMode: () => void;
   setAuthenticated: (status: boolean, pin?: string) => void;
   setLoading: (status: boolean) => void;
   logout: () => void;
   fetchExpenses: () => Promise<void>;
+  fetchLifeLogs: () => Promise<void>;
+  markLifeLogCompleted: (rowIndex: number) => Promise<void>;
+  fetchVaultEntries: () => Promise<void>;
   fetchCategories: () => Promise<void>;
   fetchFoodMaster: () => Promise<void>;
   addFoodMaster: (type: 'Food' | 'Restaurant', value: string) => Promise<void>;
@@ -46,6 +59,10 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       expenses: [],
+      lifeLogs: [],
+      hasFetchedLifeLogs: false,
+      vaultEntries: [],
+      hasFetchedVaultEntries: false,
       categories: ['Food', 'Transport', 'Groceries', 'Entertainment', 'Bills', 'Investment', 'Others'],
       foodTypes: [],
       restaurants: [],
@@ -53,6 +70,7 @@ export const useStore = create<AppState>()(
       isAuthenticated: false,
       isLoading: false,
       appPin: null,
+      vaultPin: null,
       monthlyBudget: 0,
 
       setExpenses: (expenses) => set({ expenses }),
@@ -62,6 +80,10 @@ export const useStore = create<AppState>()(
           exp.rowIndex === rowIndex ? { ...exp, ...updates } : exp
         )
       })),
+      setLifeLogs: (logs) => set({ lifeLogs: logs }),
+      addLifeLog: (log) => set((state) => ({ lifeLogs: [...state.lifeLogs, log] })),
+      setVaultEntries: (entries) => set({ vaultEntries: entries }),
+      addVaultEntry: (entry) => set((state) => ({ vaultEntries: [...state.vaultEntries, entry] })),
       addCategory: async (category) => {
         const state = get();
         if (state.categories.includes(category)) return;
@@ -114,10 +136,35 @@ export const useStore = create<AppState>()(
           }
         }
       },
+      setVaultPin: async (pin) => {
+        set({ vaultPin: pin });
+        const state = get();
+        if (state.appPin) {
+          try {
+            await fetch('/api/settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'x-app-pin': state.appPin },
+              body: JSON.stringify({ key: 'VaultPin', value: pin })
+            });
+          } catch (e) {
+            console.error('Failed to sync vault pin', e);
+          }
+        }
+      },
       toggleStealthMode: () => set((state) => ({ isStealthMode: !state.isStealthMode })),
       setAuthenticated: (status, pin) => set({ isAuthenticated: status, appPin: pin || get().appPin }),
       setLoading: (status) => set({ isLoading: status }),
-      logout: () => set({ isAuthenticated: false, appPin: null, expenses: [] }),
+      logout: () => set({ 
+        isAuthenticated: false, 
+        appPin: null, 
+        vaultPin: null,
+        expenses: [], 
+        lifeLogs: [], 
+        hasFetchedLifeLogs: false,
+        vaultEntries: [],
+        hasFetchedVaultEntries: false,
+        isStealthMode: false
+      }),
 
       fetchExpenses: async () => {
         const pin = get().appPin;
@@ -164,6 +211,101 @@ export const useStore = create<AppState>()(
           }
         } catch (error) {
           console.error("Fetch failed:", error);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      fetchLifeLogs: async () => {
+        const pin = get().appPin;
+        if (!pin) return;
+        
+        set({ isLoading: true });
+        try {
+          const response = await fetch('/api/life-log', {
+            headers: { 'x-app-pin': pin }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Fetch failed: ${response.status}`);
+          }
+          
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await response.json();
+            if (Array.isArray(data)) {
+              const mapped = data.map((row: any, index: number) => ({
+                rowIndex: index + 2,
+                timestamp: row[0] || '',
+                rawText: row[1] || '',
+                tags: row[2] || '',
+                dueDate: row[3] || null,
+                aiSummary: row[4] || '',
+                status: row[5] || ''
+              }));
+              set({ lifeLogs: mapped, hasFetchedLifeLogs: true });
+            }
+          }
+        } catch (error) {
+          console.error("Fetch life logs failed:", error);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      markLifeLogCompleted: async (rowIndex: number) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        
+        // Optimistic update
+        set(state => ({
+          lifeLogs: state.lifeLogs.filter(log => log.rowIndex !== rowIndex)
+        }));
+        
+        try {
+          await fetch(`/api/life-log/${rowIndex}/complete`, {
+            method: 'PUT',
+            headers: { 'x-app-pin': pin }
+          });
+        } catch (error) {
+          console.error("Failed to mark life log as completed", error);
+          // Optionally revert optimistic update by re-fetching
+          get().fetchLifeLogs();
+        }
+      },
+
+      fetchVaultEntries: async () => {
+        const pin = get().appPin;
+        if (!pin) return;
+        
+        set({ isLoading: true });
+        try {
+          const response = await fetch('/api/vault', {
+            headers: { 'x-app-pin': pin }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`Fetch failed: ${response.status}`);
+          }
+          
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await response.json();
+            if (Array.isArray(data)) {
+              const mapped = data.map((row: any, index: number) => ({
+                rowIndex: index + 2,
+                timestamp: row[0] || '',
+                type: row[1] || '',
+                goalName: row[2] || '',
+                amount: parseFloat(row[3] || '0'),
+                dueDate: row[4] || null,
+                monthlyContribution: parseFloat(row[5] || '0')
+              }));
+              set({ vaultEntries: mapped, hasFetchedVaultEntries: true });
+            }
+          }
+        } catch (error) {
+          console.error("Fetch vault entries failed:", error);
         } finally {
           set({ isLoading: false });
         }
@@ -248,6 +390,9 @@ export const useStore = create<AppState>()(
             const data = await response.json();
             if (data.MonthlyBudget) {
               set({ monthlyBudget: parseFloat(data.MonthlyBudget) });
+            }
+            if (data.VaultPin) {
+              set({ vaultPin: data.VaultPin });
             }
           }
         } catch (error) {
