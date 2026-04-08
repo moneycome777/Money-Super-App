@@ -6,6 +6,7 @@ import { Users, Heart, ChevronRight, CheckCircle2, RefreshCw, X, Target, Coffee,
 import { Expense } from '../types';
 import { TransactionDetails } from './TransactionDetails';
 import { ExpenseForm } from './ExpenseForm';
+import { DailyReviewStack } from './DailyReviewStack';
 
 export const Dashboard: React.FC = () => {
   const { getDashboardStats, expenses, updateExpense, appPin, setLoading, fetchExpenses, isLoading, monthlyBudget, setMonthlyBudget } = useStore();
@@ -142,6 +143,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       <div className="px-6 space-y-6 relative z-10">
+        <DailyReviewStack />
         <UOBWidget />
 
         {/* Needs vs Wants */}

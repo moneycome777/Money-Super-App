@@ -43,6 +43,29 @@ export interface VaultEntry {
   monthlyContribution?: number;
 }
 
+export interface StrengthSet {
+  name: string;
+  sets: number;
+  reps: number;
+  weight: number;
+}
+
+export interface CardioData {
+  duration: number;
+  intensity: string;
+  score?: string;
+}
+
+export interface FitnessEntry {
+  id?: string;
+  rowIndex?: number;
+  timestamp: string;
+  date: string;
+  activityType: string;
+  workoutData: string; // JSON string
+  notes: string;
+}
+
 export interface DashboardStats {
   monthlySpent: number;
   uobSpent: number;
@@ -50,4 +73,23 @@ export interface DashboardStats {
   togetherSpent: number;
   needsSpent: number;
   wantsSpent: number;
+}
+
+export interface InsightEntry {
+  id?: string;
+  rowIndex?: number;
+  timestamp: string;
+  title: string;
+  context: string;
+  category: string;
+  reviewCount: number;
+  lastReviewedAt: string | null;
+  status: 'ACTIVE' | 'ARCHIVED';
+}
+
+export interface MonthlyInsightSummary {
+  id?: string;
+  rowIndex?: number;
+  month: string; // e.g., "2026-04"
+  summary: string;
 }

@@ -8,6 +8,8 @@ import { LifeLog } from './components/LifeLog';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, Lock, LogIn, KeyRound, Home, PieChart, Plus, RefreshCw, Compass, TrendingUp, LogOut, Activity } from 'lucide-react';
 import { ExpenseForm } from './components/ExpenseForm';
+import { ActionMenu } from './components/ActionMenu';
+import { InsightModal } from './components/InsightModal';
 
 export default function App() {
   const { 
@@ -28,6 +30,8 @@ export default function App() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'home' | 'analysis' | 'discovery' | 'lifelog'>('home');
   const [isAdding, setIsAdding] = useState(false);
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const [isAddingInsight, setIsAddingInsight] = useState(false);
   const inactivityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-lock after 15 minutes of inactivity
@@ -58,6 +62,8 @@ export default function App() {
       fetchCategories();
       useStore.getState().fetchFoodMaster();
       useStore.getState().fetchSettings();
+      useStore.getState().fetchInsights();
+      useStore.getState().fetchInsightSummaries();
     }
   }, [isAuthenticated, appPin]);
 
@@ -183,7 +189,7 @@ export default function App() {
         </button>
 
         <button 
-          onClick={() => setIsAdding(true)}
+          onClick={() => setIsActionMenuOpen(true)}
           className="flex flex-col items-center justify-center -mt-8"
         >
           <div className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white active:scale-95 transition-transform shadow-[0_0_30px_-5px_rgba(37,99,235,0.6)] border border-blue-400/30">
@@ -209,7 +215,21 @@ export default function App() {
       </div>
 
       <AnimatePresence>
+        {isActionMenuOpen && (
+          <ActionMenu 
+            onClose={() => setIsActionMenuOpen(false)} 
+            onSelectExpense={() => { setIsActionMenuOpen(false); setIsAdding(true); }}
+            onSelectInsight={() => { setIsActionMenuOpen(false); setIsAddingInsight(true); }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {isAdding && <ExpenseForm onClose={() => setIsAdding(false)} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isAddingInsight && <InsightModal onClose={() => setIsAddingInsight(false)} />}
       </AnimatePresence>
 
       <AnimatePresence>

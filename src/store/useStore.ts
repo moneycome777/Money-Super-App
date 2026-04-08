@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Expense, UOBCycle, DashboardStats, LifeLogEntry } from '../types';
+import { Expense, UOBCycle, DashboardStats, LifeLogEntry, VaultEntry, FitnessEntry, InsightEntry, MonthlyInsightSummary } from '../types';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -17,6 +17,12 @@ interface AppState {
   hasFetchedLifeLogs: boolean;
   vaultEntries: VaultEntry[];
   hasFetchedVaultEntries: boolean;
+  fitnessLogs: FitnessEntry[];
+  hasFetchedFitnessLogs: boolean;
+  insights: InsightEntry[];
+  hasFetchedInsights: boolean;
+  insightSummaries: MonthlyInsightSummary[];
+  hasFetchedInsightSummaries: boolean;
   categories: string[];
   foodTypes: string[];
   restaurants: string[];
@@ -46,6 +52,14 @@ interface AppState {
   fetchLifeLogs: () => Promise<void>;
   markLifeLogCompleted: (rowIndex: number) => Promise<void>;
   fetchVaultEntries: () => Promise<void>;
+  fetchFitnessLogs: () => Promise<void>;
+  addFitnessLog: (entry: FitnessEntry) => Promise<void>;
+  fetchInsights: () => Promise<void>;
+  addInsight: (entry: InsightEntry) => Promise<void>;
+  updateInsight: (rowIndex: number, updates: Partial<InsightEntry>) => Promise<void>;
+  updateInsightReview: (rowIndex: number, reviewCount: number, lastReviewedAt: string, status: 'ACTIVE' | 'ARCHIVED') => Promise<void>;
+  fetchInsightSummaries: () => Promise<void>;
+  addInsightSummary: (summary: MonthlyInsightSummary) => Promise<void>;
   fetchCategories: () => Promise<void>;
   fetchFoodMaster: () => Promise<void>;
   addFoodMaster: (type: 'Food' | 'Restaurant', value: string) => Promise<void>;
@@ -63,6 +77,12 @@ export const useStore = create<AppState>()(
       hasFetchedLifeLogs: false,
       vaultEntries: [],
       hasFetchedVaultEntries: false,
+      fitnessLogs: [],
+      hasFetchedFitnessLogs: false,
+      insights: [],
+      hasFetchedInsights: false,
+      insightSummaries: [],
+      hasFetchedInsightSummaries: false,
       categories: ['Food', 'Transport', 'Groceries', 'Entertainment', 'Bills', 'Investment', 'Others'],
       foodTypes: [],
       restaurants: [],
@@ -308,6 +328,161 @@ export const useStore = create<AppState>()(
           console.error("Fetch vault entries failed:", error);
         } finally {
           set({ isLoading: false });
+        }
+      },
+
+      fetchFitnessLogs: async () => {
+        const pin = get().appPin;
+        if (!pin) return;
+        
+        set({ isLoading: true });
+        try {
+          const response = await fetch('/api/fitness', {
+            headers: { 'x-app-pin': pin }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data)) {
+              const mapped = data.map((row: any, index: number) => ({
+                rowIndex: index + 2,
+                timestamp: row[0] || '',
+                date: row[1] || '',
+                activityType: row[2] || '',
+                workoutData: row[3] || '{}',
+                notes: row[4] || ''
+              }));
+              set({ fitnessLogs: mapped, hasFetchedFitnessLogs: true });
+            }
+          }
+        } catch (error) {
+          console.error("Fetch fitness logs failed:", error);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      addFitnessLog: async (entry) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        
+        // Optimistic update
+        set(state => ({ fitnessLogs: [...state.fitnessLogs, entry] }));
+        
+        try {
+          const values = [[entry.timestamp, entry.date, entry.activityType, entry.workoutData, entry.notes]];
+          await fetch('/api/fitness', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-app-pin': pin },
+            body: JSON.stringify({ values })
+          });
+          get().fetchFitnessLogs(); // Re-fetch to get accurate row index
+        } catch (error) {
+          console.error("Failed to add fitness log", error);
+        }
+      },
+
+      fetchInsights: async () => {
+        const pin = get().appPin;
+        if (!pin) return;
+        try {
+          const response = await fetch('/api/insights', { headers: { 'x-app-pin': pin } });
+          if (response.ok) {
+            const data = await response.json();
+            set({ insights: data, hasFetchedInsights: true });
+          }
+        } catch (error) {
+          console.error("Fetch insights failed:", error);
+        }
+      },
+
+      addInsight: async (entry) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        try {
+          await fetch('/api/insights', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-app-pin': pin },
+            body: JSON.stringify(entry)
+          });
+          get().fetchInsights();
+        } catch (error) {
+          console.error("Failed to add insight", error);
+        }
+      },
+
+      updateInsight: async (rowIndex, updates) => {
+        const pin = get().appPin;
+        if (!pin) return;
+
+        // Optimistic update
+        set(state => ({
+          insights: state.insights.map(i => 
+            i.rowIndex === rowIndex ? { ...i, ...updates } : i
+          )
+        }));
+
+        try {
+          await fetch(`/api/insights/${rowIndex}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-app-pin': pin },
+            body: JSON.stringify(updates)
+          });
+        } catch (error) {
+          console.error("Failed to update insight", error);
+          get().fetchInsights(); // Revert on failure
+        }
+      },
+
+      updateInsightReview: async (rowIndex, reviewCount, lastReviewedAt, status) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        
+        // Optimistic update
+        set(state => ({
+          insights: state.insights.map(i => 
+            i.rowIndex === rowIndex ? { ...i, reviewCount, lastReviewedAt, status } : i
+          )
+        }));
+
+        try {
+          await fetch(`/api/insights/${rowIndex}/review`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-app-pin': pin },
+            body: JSON.stringify({ reviewCount, lastReviewedAt, status })
+          });
+        } catch (error) {
+          console.error("Failed to update insight review", error);
+          get().fetchInsights(); // Revert on failure
+        }
+      },
+
+      fetchInsightSummaries: async () => {
+        const pin = get().appPin;
+        if (!pin) return;
+        try {
+          const response = await fetch('/api/insight-summaries', { headers: { 'x-app-pin': pin } });
+          if (response.ok) {
+            const data = await response.json();
+            set({ insightSummaries: data, hasFetchedInsightSummaries: true });
+          }
+        } catch (error) {
+          console.error("Fetch insight summaries failed:", error);
+        }
+      },
+
+      addInsightSummary: async (summary) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        try {
+          await fetch('/api/insight-summaries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-app-pin': pin },
+            body: JSON.stringify(summary)
+          });
+          get().fetchInsightSummaries();
+        } catch (error) {
+          console.error("Failed to add insight summary", error);
         }
       },
 

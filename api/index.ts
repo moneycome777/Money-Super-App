@@ -470,6 +470,51 @@ app.put("/api/life-log/:row/complete", requirePin, async (req, res) => {
   }
 });
 
+// Fitness API Routes
+app.get("/api/fitness", requirePin, async (req, res) => {
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'fitness_log', ["Timestamp", "Date", "Activity_Type", "Workout_Data", "Notes"]);
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `fitness_log!A:E`,
+    });
+    
+    const values = response.data.values || [];
+    const dataRows = values.slice(1);
+    res.json(dataRows);
+  } catch (error: any) {
+    console.error("Sheets error (fitness):", error.message || error);
+    res.status(500).json({ error: "Failed to fetch fitness data", details: error.message });
+  }
+});
+
+app.post("/api/fitness", requirePin, async (req, res) => {
+  const { values } = req.body;
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'fitness_log', ["Timestamp", "Date", "Activity_Type", "Workout_Data", "Notes"]);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `fitness_log!A:A`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values },
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error (fitness post):", error.message || error);
+    res.status(500).json({ error: "Failed to save fitness data", details: error.message });
+  }
+});
+
 // Vault API Routes
 app.get("/api/vault", requirePin, async (req, res) => {
   try {
@@ -538,6 +583,175 @@ app.put("/api/expenses/:row/clear", requirePin, async (req, res) => {
   } catch (error: any) {
     console.error("Sheets error:", error.message || error);
     res.status(500).json({ error: "Failed to update data", details: error.message });
+  }
+});
+
+// --- Insights Endpoints ---
+app.get("/api/insights", requirePin, async (req, res) => {
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    await ensureSheet(sheets, spreadsheetId!, "Insights", ["ID", "Timestamp", "Title", "Context", "Category", "ReviewCount", "LastReviewedAt", "Status"]);
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "Insights!A2:H",
+    });
+
+    const rows = response.data.values || [];
+    const insights = rows.map((row, index) => ({
+      rowIndex: index + 2,
+      id: row[0] || '',
+      timestamp: row[1] || '',
+      title: row[2] || '',
+      context: row[3] || '',
+      category: row[4] || '',
+      reviewCount: parseInt(row[5]) || 0,
+      lastReviewedAt: row[6] || null,
+      status: row[7] || 'ACTIVE'
+    }));
+
+    res.json(insights);
+  } catch (error: any) {
+    console.error("Error fetching insights:", error);
+    res.status(500).json({ error: "Failed to fetch insights" });
+  }
+});
+
+app.post("/api/insights", requirePin, async (req, res) => {
+  try {
+    const { timestamp, title, context, category } = req.body;
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    const id = Date.now().toString();
+    const newRow = [
+      id,
+      timestamp,
+      title,
+      context,
+      category,
+      "0", // reviewCount
+      "", // lastReviewedAt
+      "ACTIVE" // status
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: "Insights!A:H",
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [newRow] },
+    });
+
+    res.json({ success: true, id });
+  } catch (error: any) {
+    console.error("Error adding insight:", error);
+    res.status(500).json({ error: "Failed to add insight" });
+  }
+});
+
+app.put("/api/insights/:rowIndex", requirePin, async (req, res) => {
+  try {
+    const { rowIndex } = req.params;
+    const { title, context, category } = req.body;
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `Insights!C${rowIndex}:E${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [[title, context, category]] },
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error updating insight:", error);
+    res.status(500).json({ error: "Failed to update insight" });
+  }
+});
+
+app.put("/api/insights/:rowIndex/review", requirePin, async (req, res) => {
+  try {
+    const { rowIndex } = req.params;
+    const { reviewCount, lastReviewedAt, status } = req.body;
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `Insights!F${rowIndex}:H${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [[reviewCount.toString(), lastReviewedAt || "", status]] },
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error updating insight:", error);
+    res.status(500).json({ error: "Failed to update insight" });
+  }
+});
+
+app.get("/api/insight-summaries", requirePin, async (req, res) => {
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    await ensureSheet(sheets, spreadsheetId!, "InsightSummaries", ["ID", "Month", "Summary"]);
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: "InsightSummaries!A2:C",
+    });
+
+    const rows = response.data.values || [];
+    const summaries = rows.map((row, index) => ({
+      rowIndex: index + 2,
+      id: row[0] || '',
+      month: row[1] || '',
+      summary: row[2] || ''
+    }));
+
+    res.json(summaries);
+  } catch (error: any) {
+    console.error("Error fetching insight summaries:", error);
+    res.status(500).json({ error: "Failed to fetch insight summaries" });
+  }
+});
+
+app.post("/api/insight-summaries", requirePin, async (req, res) => {
+  try {
+    const { month, summary } = req.body;
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    const id = Date.now().toString();
+    const newRow = [id, month, summary];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: "InsightSummaries!A:C",
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [newRow] },
+    });
+
+    res.json({ success: true, id });
+  } catch (error: any) {
+    console.error("Error adding insight summary:", error);
+    res.status(500).json({ error: "Failed to add insight summary" });
   }
 });
 
