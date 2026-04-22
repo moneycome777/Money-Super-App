@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import { isWithinInterval, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, format } from 'date-fns';
-import { RefreshCw, Target, Heart, Zap, ChevronRight, Edit2, Wallet } from 'lucide-react';
+import { RefreshCw, Target, Heart, Zap, ChevronRight, Edit2, Wallet, Trash2, Plus } from 'lucide-react';
 
 const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -269,10 +269,10 @@ export const Analysis: React.FC = () => {
                 </div>
               </div>
               <div className="bg-white/[0.03] backdrop-blur-xl rounded-3xl border border-white/[0.08] shadow-lg overflow-hidden">
-                {data.map((item, index) => {
-                  const budget = categoryBudgets[item.name] || 0;
-                  const progress = budget > 0 ? Math.min((item.value / budget) * 100, 100) : 0;
-                  const isOver = budget > 0 && item.value > budget;
+                {data.filter(item => (categoryBudgets[item.name] || 0) > 0).map((item, index) => {
+                  const budget = categoryBudgets[item.name];
+                  const progress = Math.min((item.value / budget) * 100, 100);
+                  const isOver = item.value > budget;
                   
                   return (
                     <div key={index} className={`p-4 ${index !== 0 ? 'border-t border-white/[0.05]' : ''}`}>
@@ -286,12 +286,12 @@ export const Analysis: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-right">
-                            <p className="text-xs font-semibold text-white">RM {item.value.toFixed(0)} <span className="text-white/30 font-normal">/ {budget > 0 ? budget : '--'}</span></p>
+                            <p className="text-xs font-semibold text-white">RM {item.value.toFixed(0)} <span className="text-white/30 font-normal">/ {budget}</span></p>
                           </div>
                           <button 
                             onClick={() => {
                               setEditingCategory(item.name);
-                              setBudgetInput(budget > 0 ? budget.toString() : '');
+                              setBudgetInput(budget.toString());
                             }}
                             className="p-1.5 bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors"
                           >
@@ -300,17 +300,34 @@ export const Analysis: React.FC = () => {
                         </div>
                       </div>
                       
-                      {budget > 0 && (
-                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-500 ${isOver ? 'bg-red-500' : 'bg-blue-500'}`}
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                      )}
+                      <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${isOver ? 'bg-red-500' : 'bg-blue-500'}`}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
+                {data.filter(item => !(categoryBudgets[item.name] > 0)).length > 0 && (
+                  <div className="p-4 bg-white/[0.01]">
+                    <p className="text-[10px] font-medium text-white/20 uppercase tracking-widest mb-3">Available for Setup</p>
+                    <div className="flex flex-wrap gap-2">
+                      {data.filter(item => !(categoryBudgets[item.name] > 0)).map((item, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            setEditingCategory(item.name);
+                            setBudgetInput('');
+                          }}
+                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-[11px] text-white/60 transition-colors flex items-center gap-1.5"
+                        >
+                          <Plus size={10} /> {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -348,14 +365,35 @@ export const Analysis: React.FC = () => {
       {editingCategory && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
           <div className="bg-[#0a0a0a] w-full max-w-xs rounded-[28px] p-6 border border-white/[0.08] shadow-2xl">
-            <h3 className="text-sm font-semibold text-white mb-4">Set Budget: {editingCategory}</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-semibold text-white">Set Budget: {editingCategory}</h3>
+              {(categoryBudgets[editingCategory] || 0) > 0 && (
+                <button 
+                  onClick={() => {
+                    setCategoryBudget(editingCategory, 0);
+                    setEditingCategory(null);
+                  }}
+                  className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
             <div className="relative mb-4">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 text-sm">RM</span>
               <input 
-                type="number"
+                type="tel"
                 autoFocus
                 value={budgetInput}
-                onChange={e => setBudgetInput(e.target.value)}
+                onChange={e => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  if (!val) {
+                    setBudgetInput('');
+                    return;
+                  }
+                  const amount = parseInt(val) / 100;
+                  setBudgetInput(amount.toFixed(2));
+                }}
                 className="w-full bg-white/[0.03] border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:border-blue-500/50"
                 placeholder="0.00"
               />

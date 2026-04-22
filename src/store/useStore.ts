@@ -159,9 +159,27 @@ export const useStore = create<AppState>()(
           }
         }
       },
-      setCategoryBudget: (category, amount) => set((state) => ({
-        categoryBudgets: { ...state.categoryBudgets, [category]: amount }
-      })),
+      setCategoryBudget: async (category, amount) => {
+        set((state) => ({
+          categoryBudgets: { ...state.categoryBudgets, [category]: amount }
+        }));
+        
+        const state = get();
+        if (state.appPin) {
+          try {
+            await fetch('/api/settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'x-app-pin': state.appPin },
+              body: JSON.stringify({ 
+                key: 'CategoryBudgets', 
+                value: JSON.stringify(state.categoryBudgets) 
+              })
+            });
+          } catch (e) {
+            console.error('Failed to sync category budget', e);
+          }
+        }
+      },
       setVaultPin: async (pin) => {
         set({ vaultPin: pin });
         const state = get();
@@ -574,6 +592,13 @@ export const useStore = create<AppState>()(
             }
             if (data.VaultPin) {
               set({ vaultPin: data.VaultPin });
+            }
+            if (data.CategoryBudgets) {
+              try {
+                set({ categoryBudgets: JSON.parse(data.CategoryBudgets) });
+              } catch (e) {
+                console.error("Failed to parse category budgets", e);
+              }
             }
           }
         } catch (error) {

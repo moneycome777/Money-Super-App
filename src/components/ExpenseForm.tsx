@@ -205,14 +205,20 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
             <div className="relative">
               <span className="absolute left-5 top-1/2 -translate-y-1/2 text-xl font-medium text-white/40">RM</span>
               <input
-                type="number"
-                step="0.01"
-                inputMode="decimal"
+                type="tel"
                 required
                 className="w-full pl-14 pr-5 py-5 bg-white/[0.03] rounded-2xl border border-white/[0.08] text-3xl font-semibold text-white focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all placeholder:text-white/20"
                 placeholder="0.00"
-                value={formData.amount || ''}
-                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })}
+                value={formData.amount === 0 ? '' : formData.amount.toFixed(2)}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  if (!val) {
+                    setFormData({ ...formData, amount: 0 });
+                    return;
+                  }
+                  const amount = parseInt(val) / 100;
+                  setFormData({ ...formData, amount });
+                }}
               />
             </div>
           </div>
@@ -290,7 +296,7 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
                   >
                     <option value="" disabled className="bg-[#141414] text-white/50">Select Food Type...</option>
                     <option value="ADD_NEW" className="bg-[#141414] text-blue-400 font-medium">+ Add New Food Type</option>
-                    {foodTypes.map(ft => (
+                    {[...foodTypes].sort((a, b) => a.localeCompare(b)).map(ft => (
                       <option key={ft} value={ft} className="bg-[#141414] text-white">{ft}</option>
                     ))}
                   </select>
@@ -335,7 +341,7 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
                   >
                     <option value="" disabled className="bg-[#141414] text-white/50">Select Restaurant...</option>
                     <option value="ADD_NEW" className="bg-[#141414] text-blue-400 font-medium">+ Add New Restaurant</option>
-                    {restaurants.map(r => (
+                    {[...restaurants].sort((a, b) => a.localeCompare(b)).map(r => (
                       <option key={r} value={r} className="bg-[#141414] text-white">{r}</option>
                     ))}
                   </select>

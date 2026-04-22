@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { UOBWidget } from './UOBWidget';
@@ -43,11 +43,17 @@ export const Dashboard: React.FC = () => {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isSettingBudget, setIsSettingBudget] = useState(false);
-  const [budgetInput, setBudgetInput] = useState(monthlyBudget.toString());
+  const [budgetInput, setBudgetInput] = useState(monthlyBudget > 0 ? monthlyBudget.toFixed(2) : '');
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const tapTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { toggleStealthMode } = useStore();
+
+  useEffect(() => {
+    if (monthlyBudget > 0) {
+      setBudgetInput(monthlyBudget.toFixed(2));
+    }
+  }, [monthlyBudget]);
 
   const handleBalanceTap = () => {
     setTapCount(prev => prev + 1);
@@ -457,9 +463,17 @@ export const Dashboard: React.FC = () => {
                   <div className="relative">
                     <span className="absolute left-5 top-1/2 -translate-y-1/2 text-lg font-medium text-white/40">RM</span>
                     <input 
-                      type="number" 
+                      type="tel" 
                       value={budgetInput}
-                      onChange={e => setBudgetInput(e.target.value)}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^0-9]/g, '');
+                        if (!val) {
+                          setBudgetInput('');
+                          return;
+                        }
+                        const amount = parseInt(val) / 100;
+                        setBudgetInput(amount.toFixed(2));
+                      }}
                       placeholder="0.00"
                       className="w-full pl-14 pr-5 py-5 bg-white/[0.03] rounded-2xl border border-white/[0.08] outline-none text-2xl font-semibold text-white focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all placeholder:text-white/20"
                     />
