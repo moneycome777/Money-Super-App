@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { useStore } from '../store/useStore';
 import { UOBWidget } from './UOBWidget';
 import { motion, AnimatePresence } from 'motion/react';
@@ -15,20 +16,35 @@ export const Dashboard: React.FC = () => {
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
+  const [filterMonthOnly, setFilterMonthOnly] = useState(true);
+  const [historyMonth, setHistoryMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   const categories = ['All', ...Array.from(new Set(expenses.map(e => e.category)))];
 
   const filteredExpenses = [...expenses].reverse().filter(exp => {
+    const date = new Date(exp.date);
     const matchesSearch = (exp.description || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
                           (exp.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (exp.restaurant || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = filterCategory === 'All' || exp.category === filterCategory;
-    return matchesSearch && matchesCategory;
+    
+    let matchesMonth = true;
+    if (filterMonthOnly) {
+      const [year, month] = historyMonth.split('-').map(Number);
+      const targetStart = startOfMonth(new Date(year, month - 1));
+      const targetEnd = endOfMonth(new Date(year, month - 1));
+      matchesMonth = isWithinInterval(date, { start: targetStart, end: targetEnd });
+    }
+    
+    return matchesSearch && matchesCategory && matchesMonth;
   });
   const [isEditing, setIsEditing] = useState(false);
   const [isSettingBudget, setIsSettingBudget] = useState(false);
   const [budgetInput, setBudgetInput] = useState(monthlyBudget.toString());
-  const [isBalanceHidden, setIsBalanceHidden] = useState(true);
+  const [isBalanceHidden, setIsBalanceHidden] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const tapTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const { toggleStealthMode } = useStore();
@@ -311,7 +327,28 @@ export const Dashboard: React.FC = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-white/[0.05] border border-white/10 rounded-2xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-blue-500/50 transition-colors"
                 />
-                <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar items-center">
+                  <button
+                    onClick={() => setFilterMonthOnly(!filterMonthOnly)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                      filterMonthOnly 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-white/10 text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    {filterMonthOnly ? 'Month Only' : 'All History'}
+                  </button>
+                  
+                  {filterMonthOnly && (
+                    <input 
+                      type="month" 
+                      value={historyMonth}
+                      onChange={(e) => setHistoryMonth(e.target.value)}
+                      className="bg-white/10 border border-white/10 rounded-full px-3 py-1 text-xs text-white focus:outline-none focus:border-blue-500/50 [color-scheme:dark]"
+                    />
+                  )}
+                  
+                  <div className="w-px h-6 bg-white/10 mx-1 shrink-0 self-center" />
                   {categories.map(cat => (
                     <button
                       key={cat}

@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { isWithinInterval, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
-import { RefreshCw, Target, Heart, Zap } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
+import { isWithinInterval, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, format } from 'date-fns';
+import { RefreshCw, Target, Heart, Zap, ChevronRight, Edit2, Wallet } from 'lucide-react';
 
 const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
 
 export const Analysis: React.FC = () => {
-  const { expenses, fetchExpenses, isLoading } = useStore();
+  const { expenses, fetchExpenses, isLoading, categoryBudgets, setCategoryBudget } = useStore();
   const [period, setPeriod] = useState<'monthly' | 'yearly' | 'compare'>('monthly');
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [budgetInput, setBudgetInput] = useState('');
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date();
@@ -61,6 +63,17 @@ export const Analysis: React.FC = () => {
     { name: 'Wants', current: currentStats.wants, previous: compareStats?.wants || 0 },
     { name: 'Together', current: currentStats.together, previous: compareStats?.together || 0 },
   ] : [];
+
+  const trendData = Array.from({ length: 6 }).map((_, i) => {
+    const d = subMonths(new Date(), 5 - i);
+    const start = startOfMonth(d);
+    const end = endOfMonth(d);
+    const stats = getStatsForInterval(start, end);
+    return {
+      month: format(d, 'MMM'),
+      total: stats.total,
+    };
+  });
 
   const formatMonthLabel = (monthStr: string) => {
     const [year, month] = monthStr.split('-');
@@ -128,6 +141,40 @@ export const Analysis: React.FC = () => {
       )}
 
       <div className="px-6 space-y-6 relative z-10">
+        {/* Trends Chart */}
+        <div className="bg-white/[0.03] backdrop-blur-xl p-6 rounded-3xl border border-white/[0.08] shadow-lg">
+          <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider mb-6 flex items-center gap-2">
+            <RefreshCw size={12} /> 6-Month Spending Trend
+          </h3>
+          <div className="h-48 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="month" stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis hide />
+                <Tooltip 
+                  formatter={(value: number) => `RM ${value.toFixed(2)}`}
+                  contentStyle={{ 
+                    borderRadius: '12px', 
+                    border: '1px solid rgba(255,255,255,0.1)', 
+                    backgroundColor: 'rgba(10, 10, 10, 0.9)',
+                    backdropFilter: 'blur(10px)',
+                    fontSize: '12px'
+                  }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="total" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2} 
+                  dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }} 
+                  activeDot={{ r: 6, fill: '#60a5fa' }} 
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
         {period === 'compare' ? (
           <div className="bg-white/[0.03] backdrop-blur-xl p-6 rounded-3xl border border-white/[0.08] shadow-lg">
             <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider mb-6 text-center">
@@ -214,7 +261,61 @@ export const Analysis: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider px-1">Category Breakdown</h3>
+              <div className="flex justify-between items-center px-1">
+                <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider">Category Budgets</h3>
+                <div className="flex items-center gap-1 text-white/30">
+                  <Wallet size={12} />
+                  <span className="text-[10px] tracking-wide">Monthly Trackers</span>
+                </div>
+              </div>
+              <div className="bg-white/[0.03] backdrop-blur-xl rounded-3xl border border-white/[0.08] shadow-lg overflow-hidden">
+                {data.map((item, index) => {
+                  const budget = categoryBudgets[item.name] || 0;
+                  const progress = budget > 0 ? Math.min((item.value / budget) * 100, 100) : 0;
+                  const isOver = budget > 0 && item.value > budget;
+                  
+                  return (
+                    <div key={index} className={`p-4 ${index !== 0 ? 'border-t border-white/[0.05]' : ''}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-2 h-2 rounded-full" 
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <p className="font-medium text-white tracking-wide">{item.name}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-white">RM {item.value.toFixed(0)} <span className="text-white/30 font-normal">/ {budget > 0 ? budget : '--'}</span></p>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              setEditingCategory(item.name);
+                              setBudgetInput(budget > 0 ? budget.toString() : '');
+                            }}
+                            className="p-1.5 bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {budget > 0 && (
+                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${isOver ? 'bg-red-500' : 'bg-blue-500'}`}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider px-1">Detailed Breakdown</h3>
               <div className="bg-white/[0.03] backdrop-blur-xl rounded-3xl border border-white/[0.08] shadow-lg overflow-hidden">
                 {data.map((item, index) => (
                   <div key={index} className={`p-4 flex items-center justify-between ${index !== 0 ? 'border-t border-white/[0.05]' : ''}`}>
@@ -242,6 +343,43 @@ export const Analysis: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Budget Edit Modal */}
+      {editingCategory && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+          <div className="bg-[#0a0a0a] w-full max-w-xs rounded-[28px] p-6 border border-white/[0.08] shadow-2xl">
+            <h3 className="text-sm font-semibold text-white mb-4">Set Budget: {editingCategory}</h3>
+            <div className="relative mb-4">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 text-sm">RM</span>
+              <input 
+                type="number"
+                autoFocus
+                value={budgetInput}
+                onChange={e => setBudgetInput(e.target.value)}
+                className="w-full bg-white/[0.03] border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white outline-none focus:border-blue-500/50"
+                placeholder="0.00"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setEditingCategory(null)}
+                className="flex-1 py-3 bg-white/5 text-white/50 rounded-xl text-xs font-medium"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  setCategoryBudget(editingCategory, parseFloat(budgetInput) || 0);
+                  setEditingCategory(null);
+                }}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-medium"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

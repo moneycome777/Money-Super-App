@@ -32,6 +32,7 @@ interface AppState {
   appPin: string | null;
   vaultPin: string | null;
   monthlyBudget: number;
+  categoryBudgets: Record<string, number>;
   
   setExpenses: (expenses: Expense[]) => void;
   addExpense: (expense: Expense) => void;
@@ -43,6 +44,7 @@ interface AppState {
   addCategory: (category: string) => void;
   removeCategory: (category: string) => void;
   setMonthlyBudget: (budget: number) => void;
+  setCategoryBudget: (category: string, amount: number) => void;
   setVaultPin: (pin: string) => void;
   toggleStealthMode: () => void;
   setAuthenticated: (status: boolean, pin?: string) => void;
@@ -92,6 +94,7 @@ export const useStore = create<AppState>()(
       appPin: null,
       vaultPin: null,
       monthlyBudget: 0,
+      categoryBudgets: {},
 
       setExpenses: (expenses) => set({ expenses }),
       addExpense: (expense) => set((state) => ({ expenses: [...state.expenses, expense] })),
@@ -156,6 +159,9 @@ export const useStore = create<AppState>()(
           }
         }
       },
+      setCategoryBudget: (category, amount) => set((state) => ({
+        categoryBudgets: { ...state.categoryBudgets, [category]: amount }
+      })),
       setVaultPin: async (pin) => {
         set({ vaultPin: pin });
         const state = get();
