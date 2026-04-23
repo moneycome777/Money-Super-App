@@ -343,11 +343,11 @@ app.get("/api/expenses", requirePin, async (req, res) => {
     const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
-    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier"]);
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier", "PetCategory", "NextDueDate"]);
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `${SHEET_NAME}!A:M`,
+      range: `${SHEET_NAME}!A:N`,
     });
     res.json(response.data.values || []);
   } catch (error: any) {
@@ -364,7 +364,7 @@ app.post("/api/expenses", requirePin, async (req, res) => {
     const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
-    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier"]);
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier", "PetCategory", "NextDueDate"]);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
@@ -390,7 +390,7 @@ app.put("/api/expenses/:row", requirePin, async (req, res) => {
     
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `${SHEET_NAME}!A${row}:L${row}`,
+      range: `${SHEET_NAME}!A${row}:N${row}`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values },
     });

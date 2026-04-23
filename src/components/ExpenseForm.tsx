@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { Expense } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, CreditCard, Users, Heart, TrendingUp, DollarSign, Settings, Trash2, Target } from 'lucide-react';
+import { Plus, X, CreditCard, Users, Heart, Briefcase, DollarSign, Settings, Trash2, Target } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -46,7 +46,7 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
     sharedFlag: false,
     collectedAmount: 0,
     togetherFlag: false,
-    isInvestment: false,
+    isReimbursable: false,
     isNeed: false,
     description: ''
   });
@@ -88,11 +88,13 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
           formData.sharedFlag,
           formData.collectedAmount,
           formData.togetherFlag,
-          formData.isInvestment,
+          formData.isReimbursable,
           formData.isNeed,
           finalDescription,
           finalRestaurant,
-          finalTier
+          finalTier,
+          formData.category === 'Pet' ? (formData.petCategory || 'Food') : '',
+          formData.category === 'Pet' && formData.nextDueDate ? formData.nextDueDate : ''
         ]]
       };
 
@@ -361,6 +363,35 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
             </div>
           )}
 
+          {formData.category === 'Pet' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">Pet Category</label>
+                <select
+                  className="w-full p-4 bg-white/[0.03] rounded-2xl border border-white/[0.08] outline-none font-medium text-white focus:border-blue-500/50 transition-all appearance-none"
+                  value={formData.petCategory || 'Food'}
+                  onChange={(e) => setFormData({ ...formData, petCategory: e.target.value })}
+                >
+                  <option value="Food" className="bg-[#141414] text-white">Food</option>
+                  <option value="Pee Pads" className="bg-[#141414] text-white">Pee Pads</option>
+                  <option value="Vet" className="bg-[#141414] text-white">Vet</option>
+                  <option value="Grooming" className="bg-[#141414] text-white">Grooming</option>
+                  <option value="Toys" className="bg-[#141414] text-white">Toys</option>
+                  <option value="Others" className="bg-[#141414] text-white">Others</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[11px] font-medium text-white/50 uppercase tracking-wider">Reminder Date</label>
+                <input
+                  type="date"
+                  className="w-full p-4 bg-white/[0.03] rounded-2xl border border-white/[0.08] outline-none font-medium text-white/40 focus:text-white focus:border-blue-500/50 transition-all [color-scheme:dark]"
+                  value={formData.nextDueDate || ''}
+                  onChange={(e) => setFormData({ ...formData, nextDueDate: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-5 gap-2 mt-2">
             <Toggle 
               label="Need"
@@ -387,10 +418,10 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
               icon={Heart}
             />
             <Toggle 
-              label="Invest"
-              active={formData.isInvestment}
-              onClick={() => setFormData({ ...formData, isInvestment: !formData.isInvestment })}
-              icon={TrendingUp}
+              label="Claim"
+              active={formData.isReimbursable}
+              onClick={() => setFormData({ ...formData, isReimbursable: !formData.isReimbursable })}
+              icon={Briefcase}
             />
           </div>
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
-import { isWithinInterval, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, format } from 'date-fns';
+import { isWithinInterval, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, subWeeks, startOfWeek, endOfWeek, format } from 'date-fns';
 import { RefreshCw, Target, Heart, Zap, ChevronRight, Edit2, Wallet, Trash2, Plus } from 'lucide-react';
 
 const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
@@ -9,6 +9,7 @@ const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'
 export const Analysis: React.FC = () => {
   const { expenses, fetchExpenses, isLoading, categoryBudgets, setCategoryBudget } = useStore();
   const [period, setPeriod] = useState<'monthly' | 'yearly' | 'compare'>('monthly');
+  const [trendView, setTrendView] = useState<'monthly' | 'weekly'>('monthly');
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [budgetInput, setBudgetInput] = useState('');
   
@@ -36,7 +37,7 @@ export const Analysis: React.FC = () => {
   const getStatsForInterval = (start: Date, end: Date) => {
     return expenses.reduce((acc, exp) => {
       const expDate = new Date(exp.date);
-      if (isWithinInterval(expDate, { start, end }) && !exp.isInvestment) {
+      if (isWithinInterval(expDate, { start, end }) && !exp.isReimbursable) {
         const amount = exp.sharedFlag ? exp.amount / 2 : exp.amount;
         acc.total += amount;
         acc.categories[exp.category] = (acc.categories[exp.category] || 0) + amount;
@@ -64,16 +65,29 @@ export const Analysis: React.FC = () => {
     { name: 'Together', current: currentStats.together, previous: compareStats?.together || 0 },
   ] : [];
 
-  const trendData = Array.from({ length: 6 }).map((_, i) => {
+  const monthlyTrendData = Array.from({ length: 6 }).map((_, i) => {
     const d = subMonths(new Date(), 5 - i);
     const start = startOfMonth(d);
     const end = endOfMonth(d);
     const stats = getStatsForInterval(start, end);
     return {
-      month: format(d, 'MMM'),
+      label: format(d, 'MMM'),
       total: stats.total,
     };
   });
+
+  const weeklyTrendData = Array.from({ length: 8 }).map((_, i) => {
+    const d = subWeeks(new Date(), 7 - i);
+    const start = startOfWeek(d, { weekStartsOn: 1 });
+    const end = endOfWeek(d, { weekStartsOn: 1 });
+    const stats = getStatsForInterval(start, end);
+    return {
+      label: format(start, 'd MMM'),
+      total: stats.total,
+    };
+  });
+
+  const activeTrendData = trendView === 'monthly' ? monthlyTrendData : weeklyTrendData;
 
   const formatMonthLabel = (monthStr: string) => {
     const [year, month] = monthStr.split('-');
@@ -143,14 +157,30 @@ export const Analysis: React.FC = () => {
       <div className="px-6 space-y-6 relative z-10">
         {/* Trends Chart */}
         <div className="bg-white/[0.03] backdrop-blur-xl p-6 rounded-3xl border border-white/[0.08] shadow-lg">
-          <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider mb-6 flex items-center gap-2">
-            <RefreshCw size={12} /> 6-Month Spending Trend
-          </h3>
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
+              <RefreshCw size={12} /> Spending Trend
+            </h3>
+            <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10">
+              <button 
+                onClick={() => setTrendView('monthly')}
+                className={`px-3 py-1 text-[10px] font-medium rounded-md transition-colors ${trendView === 'monthly' ? 'bg-white/10 text-white' : 'text-white/40'}`}
+              >
+                Monthly
+              </button>
+              <button 
+                onClick={() => setTrendView('weekly')}
+                className={`px-3 py-1 text-[10px] font-medium rounded-md transition-colors ${trendView === 'weekly' ? 'bg-white/10 text-white' : 'text-white/40'}`}
+              >
+                Weekly
+              </button>
+            </div>
+          </div>
           <div className="h-48 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData}>
+              <LineChart data={activeTrendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="month" stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} axisLine={false} />
+                <XAxis dataKey="label" stroke="rgba(255,255,255,0.3)" fontSize={10} tickLine={false} axisLine={false} />
                 <YAxis hide />
                 <Tooltip 
                   formatter={(value: number) => `RM ${value.toFixed(2)}`}

@@ -8,11 +8,13 @@ export interface Expense {
   sharedFlag: boolean;
   collectedAmount: number;
   togetherFlag: boolean;
-  isInvestment: boolean;
+  isReimbursable: boolean;
   isNeed: boolean;
   description?: string;
   restaurant?: string;
   tier?: string;
+  petCategory?: string;
+  nextDueDate?: string;
 }
 
 export interface LifeLogEntry {
@@ -92,4 +94,14 @@ export interface MonthlyInsightSummary {
   rowIndex?: number;
   month: string; // e.g., "2026-04"
   summary: string;
+}
+
+export interface PetLogEntry {
+  id?: string;
+  rowIndex?: number;
+  date: string;
+  category: 'Food' | 'Vet' | 'Grooming' | 'Toys' | 'Others';
+  amount: number;
+  notes: string;
+  nextDueDate: string | null;
 }

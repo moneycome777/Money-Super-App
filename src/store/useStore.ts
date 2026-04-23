@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Expense, UOBCycle, DashboardStats, LifeLogEntry, VaultEntry, FitnessEntry, InsightEntry, MonthlyInsightSummary } from '../types';
+import { Expense, UOBCycle, DashboardStats, LifeLogEntry, VaultEntry, FitnessEntry, InsightEntry, MonthlyInsightSummary, PetLogEntry } from '../types';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -241,11 +241,13 @@ export const useStore = create<AppState>()(
                 sharedFlag: row[4] === 'TRUE',
                 collectedAmount: parseFloat(row[5] || '0'),
                 togetherFlag: row[6] === 'TRUE',
-                isInvestment: row[7] === 'TRUE',
+                isReimbursable: row[7] === 'TRUE',
                 isNeed: row[8] === 'TRUE',
                 description: row[9] || '',
                 restaurant: row[10] || '',
-                tier: row[11] || ''
+                tier: row[11] || '',
+                petCategory: row[12] || '',
+                nextDueDate: row[13] || ''
               }));
               set({ expenses: mapped });
             }
@@ -636,15 +638,19 @@ export const useStore = create<AppState>()(
 
         return expenses.reduce((acc, exp) => {
           const expDate = new Date(exp.date);
+          const isCurrentMonth = isWithinInterval(expDate, { start: monthStart, end: monthEnd });
           
+          // All-time receivables
+          if (exp.isReimbursable) {
+            acc.receivable += exp.amount - (exp.collectedAmount || 0);
+          } else if (exp.sharedFlag) {
+            acc.receivable += (exp.amount / 2) - (exp.collectedAmount || 0);
+          }
+
           // Monthly Spent (Current Calendar Month)
-          if (isWithinInterval(expDate, { start: monthStart, end: monthEnd }) && !exp.isInvestment) {
+          if (isCurrentMonth && !exp.isReimbursable) {
             const amount = exp.sharedFlag ? exp.amount / 2 : exp.amount;
             acc.monthlySpent += amount;
-            
-            if (exp.sharedFlag) {
-              acc.receivable += (exp.amount / 2) - (exp.collectedAmount || 0);
-            }
             
             if (exp.isNeed) {
               acc.needsSpent += amount;

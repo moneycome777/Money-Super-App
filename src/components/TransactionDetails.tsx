@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { X, Edit2, Calendar, Tag, CreditCard, Users, Heart, TrendingUp, DollarSign, MapPin, Utensils } from 'lucide-react';
+import { X, Edit2, Calendar, Tag, CreditCard, Users, Heart, Briefcase, DollarSign, MapPin, Utensils } from 'lucide-react';
 import { Expense } from '../types';
 
 interface TransactionDetailsProps {
@@ -188,10 +188,10 @@ export const TransactionDetails: React.FC<TransactionDetailsProps> = ({ expense,
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 text-white/60">
-                  <TrendingUp size={18} strokeWidth={1.5} />
-                  <span className="text-sm font-medium">Investment</span>
+                  <Briefcase size={18} strokeWidth={1.5} />
+                  <span className="text-sm font-medium">Claimable</span>
                 </div>
-                <span className="text-sm text-white font-medium">{expense.isInvestment ? 'Yes' : 'No'}</span>
+                <span className="text-sm text-white font-medium">{expense.isReimbursable ? 'Yes' : 'No'}</span>
               </div>
             </div>
 

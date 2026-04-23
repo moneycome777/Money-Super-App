@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useStore } from './store/useStore';
 import { Dashboard } from './components/Dashboard';
+import { Transactions } from './components/Transactions';
 import { VaultView } from './components/VaultView';
 import { Analysis } from './components/Analysis';
 import { Discovery } from './components/Discovery';
 import { LifeLog } from './components/LifeLog';
+import { PetDashboard } from './components/PetDashboard';
 import { motion, AnimatePresence } from 'motion/react';
-import { Shield, Lock, LogIn, KeyRound, Home, PieChart, Plus, RefreshCw, Compass, TrendingUp, LogOut, Activity } from 'lucide-react';
+import { Shield, Lock, LogIn, KeyRound, Home, PieChart, Plus, RefreshCw, Compass, TrendingUp, LogOut, Activity, List, PawPrint } from 'lucide-react';
 import { ExpenseForm } from './components/ExpenseForm';
 import { ActionMenu } from './components/ActionMenu';
 import { InsightModal } from './components/InsightModal';
@@ -28,7 +30,7 @@ export default function App() {
 
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'home' | 'analysis' | 'discovery' | 'lifelog'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'analysis' | 'transactions' | 'pet' | 'discovery' | 'lifelog'>('home');
   const [isAdding, setIsAdding] = useState(false);
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
   const [isAddingInsight, setIsAddingInsight] = useState(false);
@@ -164,54 +166,77 @@ export default function App() {
       </button>
 
       <div className="pb-28 relative z-0">
-        {activeTab === 'home' && <Dashboard />}
+        {activeTab === 'home' && <Dashboard onNavigate={setActiveTab as any} />}
         {activeTab === 'analysis' && <Analysis />}
+        {activeTab === 'transactions' && <Transactions />}
+        {activeTab === 'pet' && <PetDashboard />}
         {activeTab === 'discovery' && <Discovery />}
         {activeTab === 'lifelog' && <LifeLog />}
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-6 left-6 right-6 bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08] rounded-3xl px-6 py-4 flex justify-around items-center z-40 shadow-2xl">
-        <button 
-          onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center gap-1.5 w-16 transition-colors ${activeTab === 'home' ? 'text-white' : 'text-white/40'}`}
-        >
-          <Home size={22} strokeWidth={1.5} />
-          <span className="text-[10px] font-medium tracking-wide">Home</span>
-        </button>
-        
-        <button 
-          onClick={() => setActiveTab('discovery')}
-          className={`flex flex-col items-center gap-1.5 w-16 transition-colors ${activeTab === 'discovery' ? 'text-white' : 'text-white/40'}`}
-        >
-          <Compass size={22} strokeWidth={1.5} />
-          <span className="text-[10px] font-medium tracking-wide">Discover</span>
-        </button>
+      <div className="fixed bottom-6 left-2 right-2 sm:left-4 sm:right-4 bg-white/[0.03] backdrop-blur-2xl border border-white/[0.08] rounded-3xl px-2 py-3 sm:px-4 sm:py-4 flex justify-between items-center z-40 shadow-2xl">
+        <div className="flex items-center justify-around flex-1">
+          <button 
+            onClick={() => setActiveTab('home')}
+            className={`flex flex-col items-center gap-1.5 w-12 sm:w-16 transition-colors ${activeTab === 'home' ? 'text-white' : 'text-white/40'}`}
+          >
+            <Home size={20} strokeWidth={1.5} />
+            <span className="text-[9px] sm:text-[10px] font-medium tracking-wide">Home</span>
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab('analysis')}
+            className={`flex flex-col items-center gap-1.5 w-12 sm:w-16 transition-colors ${activeTab === 'analysis' ? 'text-white' : 'text-white/40'}`}
+          >
+            <PieChart size={20} strokeWidth={1.5} />
+            <span className="text-[9px] sm:text-[10px] font-medium tracking-wide">Analysis</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('transactions')}
+            className={`flex flex-col items-center gap-1.5 w-12 sm:w-16 transition-colors ${activeTab === 'transactions' ? 'text-white' : 'text-white/40'}`}
+          >
+            <List size={20} strokeWidth={1.5} />
+            <span className="text-[9px] sm:text-[10px] font-medium tracking-wide">History</span>
+          </button>
+        </div>
 
         <button 
           onClick={() => setIsActionMenuOpen(true)}
-          className="flex flex-col items-center justify-center -mt-8"
+          className="flex flex-col items-center justify-center -mt-8 mx-2 sm:mx-4 shrink-0"
         >
-          <div className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white active:scale-95 transition-transform shadow-[0_0_30px_-5px_rgba(37,99,235,0.6)] border border-blue-400/30">
-            <Plus size={28} strokeWidth={1.5} />
+          <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-600 rounded-full flex items-center justify-center text-white active:scale-95 transition-transform shadow-[0_0_30px_-5px_rgba(37,99,235,0.6)] border border-blue-400/30">
+            <Plus size={24} strokeWidth={1.5} className="sm:hidden" />
+            <Plus size={28} strokeWidth={1.5} className="hidden sm:block" />
           </div>
         </button>
 
-        <button 
-          onClick={() => setActiveTab('analysis')}
-          className={`flex flex-col items-center gap-1.5 w-16 transition-colors ${activeTab === 'analysis' ? 'text-white' : 'text-white/40'}`}
-        >
-          <PieChart size={22} strokeWidth={1.5} />
-          <span className="text-[10px] font-medium tracking-wide">Analysis</span>
-        </button>
+        <div className="flex items-center justify-around flex-1">
+          <button 
+            onClick={() => setActiveTab('pet')}
+            className={`flex flex-col items-center gap-1.5 w-12 sm:w-16 transition-colors ${activeTab === 'pet' ? 'text-white' : 'text-white/40'}`}
+          >
+            <PawPrint size={20} strokeWidth={1.5} />
+            <span className="text-[9px] sm:text-[10px] font-medium tracking-wide">Pet</span>
+          </button>
 
-        <button 
-          onClick={() => setActiveTab('lifelog')}
-          className={`flex flex-col items-center gap-1.5 w-16 transition-colors ${activeTab === 'lifelog' ? 'text-white' : 'text-white/40'}`}
-        >
-          <Activity size={22} strokeWidth={1.5} />
-          <span className="text-[10px] font-medium tracking-wide">Pulse</span>
-        </button>
+          <button 
+            onClick={() => setActiveTab('discovery')}
+            className={`flex flex-col items-center gap-1.5 w-12 sm:w-16 transition-colors ${activeTab === 'discovery' ? 'text-white' : 'text-white/40'}`}
+          >
+            <Compass size={20} strokeWidth={1.5} />
+            <span className="text-[9px] sm:text-[10px] font-medium tracking-wide">Discover</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('lifelog')}
+            className={`flex flex-col items-center gap-1.5 w-12 sm:w-16 transition-colors ${activeTab === 'lifelog' ? 'text-white' : 'text-white/40'}`}
+          >
+            <Activity size={20} strokeWidth={1.5} />
+            <span className="text-[9px] sm:text-[10px] font-medium tracking-wide">Pulse</span>
+          </button>
+        </div>
       </div>
 
       <AnimatePresence>

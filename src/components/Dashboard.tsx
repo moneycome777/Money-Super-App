@@ -9,38 +9,10 @@ import { TransactionDetails } from './TransactionDetails';
 import { ExpenseForm } from './ExpenseForm';
 import { DailyReviewStack } from './DailyReviewStack';
 
-export const Dashboard: React.FC = () => {
+export const Dashboard: React.FC<{ onNavigate?: (tab: string) => void }> = ({ onNavigate }) => {
   const { getDashboardStats, expenses, updateExpense, appPin, setLoading, fetchExpenses, isLoading, monthlyBudget, setMonthlyBudget } = useStore();
   const stats = getDashboardStats();
-  const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('All');
-  const [filterMonthOnly, setFilterMonthOnly] = useState(true);
-  const [historyMonth, setHistoryMonth] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
-
-  const categories = ['All', ...Array.from(new Set(expenses.map(e => e.category)))];
-
-  const filteredExpenses = [...expenses].reverse().filter(exp => {
-    const date = new Date(exp.date);
-    const matchesSearch = (exp.description || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          (exp.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (exp.restaurant || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = filterCategory === 'All' || exp.category === filterCategory;
-    
-    let matchesMonth = true;
-    if (filterMonthOnly) {
-      const [year, month] = historyMonth.split('-').map(Number);
-      const targetStart = startOfMonth(new Date(year, month - 1));
-      const targetEnd = endOfMonth(new Date(year, month - 1));
-      matchesMonth = isWithinInterval(date, { start: targetStart, end: targetEnd });
-    }
-    
-    return matchesSearch && matchesCategory && matchesMonth;
-  });
   const [isEditing, setIsEditing] = useState(false);
   const [isSettingBudget, setIsSettingBudget] = useState(false);
   const [budgetInput, setBudgetInput] = useState(monthlyBudget > 0 ? monthlyBudget.toFixed(2) : '');
@@ -92,7 +64,10 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const receivables = expenses.filter(exp => exp.sharedFlag && (exp.amount / 2) > (exp.collectedAmount || 0));
+  const receivables = expenses.filter(exp => {
+    if (exp.isReimbursable) return exp.amount > (exp.collectedAmount || 0);
+    return exp.sharedFlag && (exp.amount / 2) > (exp.collectedAmount || 0);
+  });
 
   return (
     <div className="bg-[#030303] text-white min-h-screen relative">
@@ -221,7 +196,10 @@ export const Dashboard: React.FC = () => {
             <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider px-1">Pending Receivables</h3>
             <div className="space-y-3">
               {receivables.map((exp, i) => {
-                const owed = (exp.amount / 2) - (exp.collectedAmount || 0);
+                const owed = exp.isReimbursable 
+                  ? exp.amount - (exp.collectedAmount || 0) 
+                  : (exp.amount / 2) - (exp.collectedAmount || 0);
+                const clearAmount = exp.isReimbursable ? exp.amount : exp.amount / 2;
                 return (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
@@ -230,13 +208,18 @@ export const Dashboard: React.FC = () => {
                     className="bg-white/[0.03] backdrop-blur-xl p-4 rounded-3xl border border-white/[0.08] shadow-lg flex justify-between items-center"
                   >
                     <div>
-                      <p className="font-medium text-white">{exp.category}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-white">{exp.category}</p>
+                        {exp.isReimbursable && (
+                          <span className="text-[9px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">Claim</span>
+                        )}
+                      </div>
                       <p className="text-xs text-white/40 mt-1">{exp.description || new Date(exp.date).toLocaleDateString()}</p>
                     </div>
                     <div className="flex items-center gap-4">
                       <p className="font-semibold text-white">RM {isBalanceHidden ? '***.**' : owed.toFixed(2)}</p>
                       <button 
-                        onClick={() => exp.rowIndex && handleClearReceivable(exp.rowIndex, exp.amount / 2)}
+                        onClick={() => exp.rowIndex && handleClearReceivable(exp.rowIndex, clearAmount)}
                         className="p-2.5 bg-white/5 rounded-full text-white/40 hover:text-green-400 hover:bg-green-500/10 transition-colors border border-white/5"
                       >
                         <CheckCircle2 size={18} strokeWidth={1.5} />
@@ -254,7 +237,7 @@ export const Dashboard: React.FC = () => {
           <div className="flex justify-between items-center px-1">
             <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider">Recent Activity</h3>
             <button 
-              onClick={() => setShowAllTransactions(true)}
+              onClick={() => onNavigate?.('transactions')}
               className="text-[11px] font-medium text-blue-400 flex items-center gap-1 active:opacity-70 tracking-wide uppercase"
             >
               View All <ChevronRight size={14} strokeWidth={1.5} />
@@ -276,9 +259,14 @@ export const Dashboard: React.FC = () => {
                     {exp.category?.charAt(0) || '?'}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-white tracking-wide truncate">
-                      {exp.category === 'Food' && exp.description ? exp.description : exp.category}
-                    </p>
+                    <div className="flex items-center gap-2">
+                       <p className="font-medium text-white tracking-wide truncate">
+                         {exp.category === 'Food' && exp.description ? exp.description : exp.category}
+                       </p>
+                       {exp.isReimbursable && (
+                         <span className="text-[9px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0">Claim</span>
+                       )}
+                    </div>
                     <p className="text-xs text-white/40 mt-0.5 truncate">
                       {exp.category === 'Food' && exp.restaurant ? `${exp.restaurant} • ` : ''}
                       {new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
@@ -304,120 +292,6 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* All Transactions Modal */}
-      <AnimatePresence>
-        {showAllTransactions && (
-          <motion.div 
-            initial={{ opacity: 0, y: "100%" }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 z-[60] bg-[#030303] flex flex-col"
-          >
-            <div className="bg-white/[0.03] backdrop-blur-xl px-6 pt-14 pb-4 border-b border-white/[0.08] flex flex-col shrink-0">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-white tracking-tight">All Transactions</h2>
-                <button 
-                  onClick={() => setShowAllTransactions(false)}
-                  className="p-2.5 bg-white/5 rounded-full text-white/50 hover:text-white transition-colors border border-white/5"
-                >
-                  <X size={18} strokeWidth={1.5} />
-                </button>
-              </div>
-              
-              <div className="flex flex-col gap-3">
-                <input
-                  type="text"
-                  placeholder="Search expenses..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/[0.05] border border-white/10 rounded-2xl px-4 py-3 text-white placeholder:text-white/30 focus:outline-none focus:border-blue-500/50 transition-colors"
-                />
-                <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar items-center">
-                  <button
-                    onClick={() => setFilterMonthOnly(!filterMonthOnly)}
-                    className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                      filterMonthOnly 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-white/10 text-white/70 hover:bg-white/20'
-                    }`}
-                  >
-                    {filterMonthOnly ? 'Month Only' : 'All History'}
-                  </button>
-                  
-                  {filterMonthOnly && (
-                    <input 
-                      type="month" 
-                      value={historyMonth}
-                      onChange={(e) => setHistoryMonth(e.target.value)}
-                      className="bg-white/10 border border-white/10 rounded-full px-3 py-1 text-xs text-white focus:outline-none focus:border-blue-500/50 [color-scheme:dark]"
-                    />
-                  )}
-                  
-                  <div className="w-px h-6 bg-white/10 mx-1 shrink-0 self-center" />
-                  {categories.map(cat => (
-                    <button
-                      key={cat}
-                      onClick={() => setFilterCategory(cat)}
-                      className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                        filterCategory === cat 
-                          ? 'bg-blue-500 text-white' 
-                          : 'bg-white/5 text-white/50 hover:bg-white/10'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-6 pb-32">
-              <div className="bg-white/[0.03] backdrop-blur-xl rounded-3xl border border-white/[0.08] shadow-lg overflow-hidden">
-                {filteredExpenses.length > 0 ? filteredExpenses.map((exp, i) => (
-                  <div 
-                    key={i} 
-                    onClick={() => setSelectedExpense(exp)}
-                    className={`p-4 flex justify-between items-start cursor-pointer active:bg-white/[0.02] transition-colors ${i !== 0 ? 'border-t border-white/[0.05]' : ''}`}
-                  >
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div className="w-10 h-10 bg-white/[0.05] border border-white/10 rounded-2xl flex items-center justify-center text-white/70 font-medium text-sm shrink-0 mt-0.5">
-                        {exp.category?.charAt(0) || '?'}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-white tracking-wide truncate">
-                          {exp.category === 'Food' && exp.description ? exp.description : exp.category}
-                        </p>
-                        <p className="text-xs text-white/40 mt-0.5 truncate">
-                          {exp.category === 'Food' && exp.restaurant ? `${exp.restaurant} • ` : ''}
-                          {new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </p>
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {exp.tier && <span className="text-[9px] font-medium text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">{exp.tier}</span>}
-                          {exp.isNeed ? (
-                            <span className="text-[9px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Need</span>
-                          ) : (
-                            <span className="text-[9px] font-medium text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Want</span>
-                          )}
-                          {exp.sharedFlag && <span className="text-[9px] font-medium text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Shared</span>}
-                          {exp.togetherFlag && <span className="text-[9px] font-medium text-pink-400 bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Together</span>}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0 ml-3">
-                      <p className="font-semibold text-white tracking-wide">-RM {isBalanceHidden ? '***.**' : exp.amount.toFixed(2)}</p>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="p-8 text-center text-white/40">
-                    No expenses found matching your filters.
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
       <AnimatePresence>
         {selectedExpense && !isEditing && (
           <TransactionDetails 
