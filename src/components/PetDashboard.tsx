@@ -77,10 +77,11 @@ export const PetDashboard: React.FC = () => {
         acc[cat].push(pet);
       }
       return acc;
-    }, {} as Record<string, typeof pets>);
+    }, {} as Record<string, any[]>);
 
     const trackers = [];
-    for (const [catName, entries] of Object.entries(grouped)) {
+    for (const [catName, anyEntries] of Object.entries(grouped)) {
+      const entries = anyEntries as any[];
       // Get unique dates per category
       const uniqueDates = Array.from(new Set(entries.map(e => e.date)))
         .map(d => new Date(d))

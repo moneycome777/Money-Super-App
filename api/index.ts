@@ -807,6 +807,207 @@ app.post("/api/food-master", requirePin, async (req, res) => {
   }
 });
 
+// Wealth API Routes
+app.get("/api/wealth-log", requirePin, async (req, res) => {
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'wealth_log', ["Date", "Type", "Category", "AmountMYR", "AmountUSD", "PriceUSD", "Units", "Notes"]);
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `wealth_log!A:H`,
+    });
+    
+    res.json(response.data.values || []);
+  } catch (error: any) {
+    console.error("Sheets error (wealth-log):", error.message || error);
+    res.status(500).json({ error: "Failed to fetch wealth data", details: error.message });
+  }
+});
+
+app.post("/api/wealth-log", requirePin, async (req, res) => {
+  const { values } = req.body;
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'wealth_log', ["Date", "Type", "Category", "AmountMYR", "AmountUSD", "PriceUSD", "Units", "Notes"]);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `wealth_log!A:A`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values },
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error (wealth post):", error.message || error);
+    res.status(500).json({ error: "Failed to save wealth data", details: error.message });
+  }
+});
+
+app.put("/api/wealth-log/:rowIndex", requirePin, async (req, res) => {
+  const { rowIndex } = req.params;
+  const { values } = req.body;
+  
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `wealth_log!A${rowIndex}:H${rowIndex}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values },
+    });
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error (wealth put):", error.message || error);
+    res.status(500).json({ error: "Failed to update wealth data", details: error.message });
+  }
+});
+
+app.delete("/api/wealth-log/:rowIndex", requirePin, async (req, res) => {
+  const { rowIndex } = req.params;
+  
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `wealth_log!A${rowIndex}:H${rowIndex}`,
+    });
+    
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error (wealth delete):", error.message || error);
+    res.status(500).json({ error: "Failed to delete wealth data", details: error.message });
+  }
+});
+
+app.get("/api/wealth-config", requirePin, async (req, res) => {
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'wealth_config', ["Key", "Value"]);
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `wealth_config!A:B`,
+    });
+    
+    res.json(response.data.values || []);
+  } catch (error: any) {
+    console.error("Sheets error (wealth-config):", error.message || error);
+    res.status(500).json({ error: "Failed to fetch wealth config", details: error.message });
+  }
+});
+
+app.put("/api/wealth-config", requirePin, async (req, res) => {
+  const { key, value } = req.body;
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, 'wealth_config', ["Key", "Value"]);
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `wealth_config!A:B`,
+    });
+    
+    const values = response.data.values || [];
+    let rowIndex = -1;
+    for (let i = 0; i < values.length; i++) {
+        if (values[i][0] === key) {
+            rowIndex = i + 1;
+            break;
+        }
+    }
+
+    if (rowIndex !== -1) {
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: process.env.GOOGLE_SHEET_ID,
+            range: `wealth_config!B${rowIndex}`,
+            valueInputOption: "USER_ENTERED",
+            requestBody: { values: [[value.toString()]] },
+        });
+    } else {
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: process.env.GOOGLE_SHEET_ID,
+            range: `wealth_config!A:B`,
+            valueInputOption: "USER_ENTERED",
+            requestBody: { values: [[key, value.toString()]] },
+        });
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error (wealth-config update):", error.message || error);
+    res.status(500).json({ error: "Failed to update wealth config", details: error.message });
+  }
+});
+
+app.get("/api/stock-price", requirePin, async (req, res) => {
+  const symbol = req.query.symbol as string;
+  if (!symbol) return res.status(400).json({ error: "Symbol is required" });
+
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1y`;
+    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const data = await response.json() as any;
+
+    if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+      throw new Error("Symbol not found");
+    }
+
+    const result = data.chart.result[0];
+    const prices = result.indicators.quote[0].close || [];
+    const timestamps = result.timestamp || [];
+    
+    // Filter out nulls
+    const validPrices = prices.filter((p: any) => p !== null);
+
+    if (validPrices.length === 0) throw new Error("No pricing data found");
+
+    const currentPrice = validPrices[validPrices.length - 1];
+    
+    // Calculate MA200 if we have enough points
+    let ma200 = 0;
+    if (validPrices.length >= 200) {
+      const last200 = validPrices.slice(-200);
+      ma200 = last200.reduce((a: number, b: number) => a + b, 0) / 200;
+    } else {
+        // Fallback to average of available points if less than 200
+        ma200 = validPrices.reduce((a: number, b: number) => a + b, 0) / validPrices.length;
+    }
+
+    const prevPrice = validPrices.length > 1 ? validPrices[validPrices.length - 2] : currentPrice;
+    const changePercent = ((currentPrice - prevPrice) / prevPrice) * 100;
+
+    res.json({
+      symbol,
+      currentPrice,
+      ma200,
+      changePercent,
+      lastUpdated: timestamps.length > 0 ? new Date(timestamps[timestamps.length - 1] * 1000).toISOString() : new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error("Stock price error:", error.message);
+    res.status(500).json({ error: "Failed to fetch stock price", details: error.message });
+  }
+});
+
 async function startServer() {
   // Only import Vite in non-production environments to avoid Vercel build issues
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {

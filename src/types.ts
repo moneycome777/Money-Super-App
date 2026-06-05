@@ -105,3 +105,29 @@ export interface PetLogEntry {
   notes: string;
   nextDueDate: string | null;
 }
+
+export interface WealthLogEntry {
+  id?: string;
+  rowIndex?: number;
+  date: string;
+  type: 'INCOME_SAVE' | 'WITHDRAW' | 'INVEST_BUY' | 'INVEST_SELL' | 'BALANCE_ADJ';
+  category: string; // VOO, QQQ, Bullet, Travel, etc.
+  amountMYR: number;
+  amountUSD?: number;
+  priceUSD?: number;
+  units?: number;
+  notes?: string;
+}
+
+export interface WealthConfig {
+  key: string;
+  value: string;
+}
+
+export interface StockPriceData {
+  symbol: string;
+  currentPrice: number;
+  ma200: number;
+  changePercent: number;
+  lastUpdated: string;
+}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Expense, UOBCycle, DashboardStats, LifeLogEntry, VaultEntry, FitnessEntry, InsightEntry, MonthlyInsightSummary, PetLogEntry } from '../types';
+import { Expense, UOBCycle, DashboardStats, LifeLogEntry, VaultEntry, FitnessEntry, InsightEntry, MonthlyInsightSummary, PetLogEntry, WealthLogEntry, WealthConfig, StockPriceData } from '../types';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -23,6 +23,10 @@ interface AppState {
   hasFetchedInsights: boolean;
   insightSummaries: MonthlyInsightSummary[];
   hasFetchedInsightSummaries: boolean;
+  wealthLogs: WealthLogEntry[];
+  hasFetchedWealthLogs: boolean;
+  wealthConfigs: Record<string, string>;
+  hasFetchedWealthConfigs: boolean;
   categories: string[];
   foodTypes: string[];
   restaurants: string[];
@@ -33,6 +37,7 @@ interface AppState {
   vaultPin: string | null;
   monthlyBudget: number;
   categoryBudgets: Record<string, number>;
+  isBalanceHidden: boolean;
   
   setExpenses: (expenses: Expense[]) => void;
   addExpense: (expense: Expense) => void;
@@ -62,6 +67,13 @@ interface AppState {
   updateInsightReview: (rowIndex: number, reviewCount: number, lastReviewedAt: string, status: 'ACTIVE' | 'ARCHIVED') => Promise<void>;
   fetchInsightSummaries: () => Promise<void>;
   addInsightSummary: (summary: MonthlyInsightSummary) => Promise<void>;
+  fetchWealthLogs: () => Promise<void>;
+  addWealthLog: (entry: WealthLogEntry) => Promise<void>;
+  updateWealthLog: (rowIndex: number, entry: WealthLogEntry) => Promise<void>;
+  deleteWealthLog: (rowIndex: number) => Promise<void>;
+  fetchWealthConfigs: () => Promise<void>;
+  updateWealthConfig: (key: string, value: string) => Promise<void>;
+  fetchStockPrice: (symbol: string) => Promise<StockPriceData | null>;
   fetchCategories: () => Promise<void>;
   fetchFoodMaster: () => Promise<void>;
   addFoodMaster: (type: 'Food' | 'Restaurant', value: string) => Promise<void>;
@@ -85,6 +97,10 @@ export const useStore = create<AppState>()(
       hasFetchedInsights: false,
       insightSummaries: [],
       hasFetchedInsightSummaries: false,
+      wealthLogs: [],
+      hasFetchedWealthLogs: false,
+      wealthConfigs: {},
+      hasFetchedWealthConfigs: false,
       categories: ['Food', 'Transport', 'Groceries', 'Entertainment', 'Bills', 'Investment', 'Others'],
       foodTypes: [],
       restaurants: [],
@@ -95,6 +111,7 @@ export const useStore = create<AppState>()(
       vaultPin: null,
       monthlyBudget: 0,
       categoryBudgets: {},
+      isBalanceHidden: false,
 
       setExpenses: (expenses) => set({ expenses }),
       addExpense: (expense) => set((state) => ({ expenses: [...state.expenses, expense] })),
@@ -512,6 +529,151 @@ export const useStore = create<AppState>()(
         }
       },
 
+      fetchWealthLogs: async () => {
+        const pin = get().appPin;
+        if (!pin) return;
+        set({ isLoading: true });
+        try {
+          const response = await fetch('/api/wealth-log', { headers: { 'x-app-pin': pin } });
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            const mapped = data.slice(1).map((row: any, index: number) => ({
+              rowIndex: index + 2,
+              date: row[0],
+              type: row[1],
+              category: row[2],
+              amountMYR: parseFloat(row[3] || '0'),
+              amountUSD: row[4] ? parseFloat(row[4]) : undefined,
+              priceUSD: row[5] ? parseFloat(row[5]) : undefined,
+              units: row[6] ? parseFloat(row[6]) : undefined,
+              notes: row[7] || ''
+            })).filter((log: any) => log.date && log.category);
+            set({ wealthLogs: mapped, hasFetchedWealthLogs: true });
+          }
+        } catch (error) {
+          console.error("Fetch wealth logs failed:", error);
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+
+      addWealthLog: async (entry) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        try {
+          const values = [[
+            entry.date, 
+            entry.type, 
+            entry.category, 
+            entry.amountMYR, 
+            entry.amountUSD || '', 
+            entry.priceUSD || '', 
+            entry.units || '', 
+            entry.notes || ''
+          ]];
+          await fetch('/api/wealth-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-app-pin': pin },
+            body: JSON.stringify({ values })
+          });
+          get().fetchWealthLogs();
+        } catch (error) {
+          console.error("Failed to add wealth log", error);
+        }
+      },
+
+      updateWealthLog: async (rowIndex: number, entry: WealthLogEntry) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        try {
+          const values = [[
+            entry.date, 
+            entry.type, 
+            entry.category, 
+            entry.amountMYR, 
+            entry.amountUSD || '', 
+            entry.priceUSD || '', 
+            entry.units || '', 
+            entry.notes || ''
+          ]];
+          await fetch(`/api/wealth-log/${rowIndex}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-app-pin': pin },
+            body: JSON.stringify({ values })
+          });
+          get().fetchWealthLogs();
+        } catch (error) {
+          console.error("Failed to update wealth log", error);
+        }
+      },
+
+      deleteWealthLog: async (rowIndex: number) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        try {
+          await fetch(`/api/wealth-log/${rowIndex}`, {
+            method: 'DELETE',
+            headers: { 'x-app-pin': pin }
+          });
+          get().fetchWealthLogs();
+        } catch (error) {
+          console.error("Failed to delete wealth log", error);
+        }
+      },
+
+      fetchWealthConfigs: async () => {
+        const pin = get().appPin;
+        if (!pin) return;
+        try {
+          const response = await fetch('/api/wealth-config', { headers: { 'x-app-pin': pin } });
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            const configs: Record<string, string> = {};
+            data.forEach(row => {
+              if (row[0] && row[0] !== 'Key') {
+                configs[row[0]] = row[1] || '';
+              }
+            });
+            set({ wealthConfigs: configs, hasFetchedWealthConfigs: true });
+          }
+        } catch (error) {
+          console.error("Fetch wealth config failed:", error);
+        }
+      },
+
+      updateWealthConfig: async (key, value) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        try {
+          await fetch('/api/wealth-config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-app-pin': pin },
+            body: JSON.stringify({ key, value })
+          });
+          set(state => ({
+            wealthConfigs: { ...state.wealthConfigs, [key]: value }
+          }));
+        } catch (error) {
+          console.error("Failed to update wealth config", error);
+        }
+      },
+
+      fetchStockPrice: async (symbol) => {
+        const pin = get().appPin;
+        if (!pin) return null;
+        try {
+          const response = await fetch(`/api/stock-price?symbol=${symbol}`, { 
+            headers: { 'x-app-pin': pin } 
+          });
+          if (response.ok) {
+            return await response.json();
+          }
+        } catch (error) {
+          console.error(`Failed to fetch stock price for ${symbol}`, error);
+        }
+        return null;
+      },
+
       fetchCategories: async () => {
         const pin = get().appPin;
         if (!pin) return;
@@ -675,7 +837,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'superapp-storage',
-      partialize: (state) => ({ appPin: state.appPin, isAuthenticated: state.isAuthenticated, monthlyBudget: state.monthlyBudget, categories: state.categories, foodTypes: state.foodTypes, restaurants: state.restaurants }),
+      partialize: (state) => ({ appPin: state.appPin, isAuthenticated: state.isAuthenticated, monthlyBudget: state.monthlyBudget, categories: state.categories, foodTypes: state.foodTypes, restaurants: state.restaurants, isBalanceHidden: state.isBalanceHidden }),
     }
   )
 );
