@@ -777,12 +777,12 @@ export const useStore = create<AppState>()(
         let start: Date;
         let end: Date;
 
-        if (today.getDate() >= 18) {
-          start = setFns(new Date(), { date: 18, hours: 0, minutes: 0, seconds: 0 });
-          end = setFns(addMonths(new Date(), 1), { date: 17, hours: 23, minutes: 59, seconds: 59 });
+        if (today.getDate() >= 19) {
+          start = setFns(new Date(), { date: 19, hours: 0, minutes: 0, seconds: 0 });
+          end = setFns(addMonths(new Date(), 1), { date: 18, hours: 23, minutes: 59, seconds: 59 });
         } else {
-          start = setFns(subMonths(new Date(), 1), { date: 18, hours: 0, minutes: 0, seconds: 0 });
-          end = setFns(new Date(), { date: 17, hours: 23, minutes: 59, seconds: 59 });
+          start = setFns(subMonths(new Date(), 1), { date: 19, hours: 0, minutes: 0, seconds: 0 });
+          end = setFns(new Date(), { date: 18, hours: 23, minutes: 59, seconds: 59 });
         }
 
         return {
@@ -800,7 +800,7 @@ export const useStore = create<AppState>()(
         const uobCycle = get().getUOBCycle();
 
         return expenses.reduce((acc, exp) => {
-          const expDate = new Date(exp.date);
+          const expDate = new Date(exp.date + 'T00:00:00');
           const isCurrentMonth = isWithinInterval(expDate, { start: monthStart, end: monthEnd });
           
           // All-time receivables

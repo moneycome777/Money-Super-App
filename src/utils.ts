@@ -1,7 +1,7 @@
 import { Expense } from './types';
 
 export function getCreditCardDueDate(dateString: string): { dueDateStr: string, dueDate: Date } {
-  const txDate = new Date(dateString);
+  const txDate = new Date(dateString + 'T00:00:00');
   const day = txDate.getDate();
   const month = txDate.getMonth();
   const year = txDate.getFullYear();
