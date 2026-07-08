@@ -264,7 +264,8 @@ export const useStore = create<AppState>()(
                 restaurant: row[10] || '',
                 tier: row[11] || '',
                 petCategory: row[12] || '',
-                nextDueDate: row[13] || ''
+                nextDueDate: row[13] || '',
+                isFunded: row[14] === 'TRUE'
               }));
               set({ expenses: mapped });
             }

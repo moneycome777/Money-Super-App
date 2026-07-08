@@ -15,6 +15,7 @@ export interface Expense {
   tier?: string;
   petCategory?: string;
   nextDueDate?: string;
+  isFunded?: boolean;
 }
 
 export interface LifeLogEntry {

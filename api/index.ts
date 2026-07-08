@@ -343,11 +343,11 @@ app.get("/api/expenses", requirePin, async (req, res) => {
     const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
-    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier", "PetCategory", "NextDueDate"]);
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier", "PetCategory", "NextDueDate", "IsFunded"]);
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `${SHEET_NAME}!A:N`,
+      range: `${SHEET_NAME}!A:O`,
     });
     res.json(response.data.values || []);
   } catch (error: any) {
@@ -364,7 +364,7 @@ app.post("/api/expenses", requirePin, async (req, res) => {
     const { google } = await import("googleapis");
     const sheets = google.sheets({ version: "v4", auth });
     
-    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier", "PetCategory", "NextDueDate"]);
+    await ensureSheet(sheets, process.env.GOOGLE_SHEET_ID as string, SHEET_NAME, ["Date", "Amount", "Category", "PaymentMethod", "SharedFlag", "CollectedAmount", "TogetherFlag", "IsInvestment", "IsNeed", "Description", "Restaurant", "Tier", "PetCategory", "NextDueDate", "IsFunded"]);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
@@ -390,7 +390,7 @@ app.put("/api/expenses/:row", requirePin, async (req, res) => {
     
     await sheets.spreadsheets.values.update({
       spreadsheetId: process.env.GOOGLE_SHEET_ID,
-      range: `${SHEET_NAME}!A${row}:N${row}`,
+      range: `${SHEET_NAME}!A${row}:O${row}`,
       valueInputOption: "USER_ENTERED",
       requestBody: { values },
     });
@@ -560,6 +560,28 @@ app.post("/api/vault", requirePin, async (req, res) => {
   } catch (error: any) {
     console.error("Sheets error (vault post):", error.message || error);
     res.status(500).json({ error: "Failed to save vault data", details: error.message });
+  }
+});
+
+app.put("/api/expenses/:row/fund", requirePin, async (req, res) => {
+  const row = parseInt(req.params.row);
+
+  try {
+    const auth = await getGoogleAuth();
+    const { google } = await import("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: process.env.GOOGLE_SHEET_ID,
+      range: `${SHEET_NAME}!O${row}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [["TRUE"]] },
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Sheets error:", error.message || error);
+    res.status(500).json({ error: "Failed to update data", details: error.message });
   }
 });
 

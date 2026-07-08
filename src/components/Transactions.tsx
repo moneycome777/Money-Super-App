@@ -6,6 +6,8 @@ import { Expense } from '../types';
 import { TransactionDetails } from './TransactionDetails';
 import { ExpenseForm } from './ExpenseForm';
 
+import { getCreditCardDueDate } from '../utils';
+
 export const Transactions: React.FC = () => {
   const { expenses, isBalanceHidden } = useStore();
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
@@ -118,6 +120,16 @@ export const Transactions: React.FC = () => {
                     {new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                   <div className="flex flex-wrap gap-1.5 mt-2">
+                    {exp.paymentMethod === 'UOB_ONE' && !exp.isFunded && (
+                      <span className="text-[9px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        💳 Due: {getCreditCardDueDate(exp.date).dueDateStr}
+                      </span>
+                    )}
+                    {exp.paymentMethod === 'UOB_ONE' && exp.isFunded && (
+                      <span className="text-[9px] font-medium text-emerald-400/50 bg-emerald-500/5 border border-emerald-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        ✓ Funded
+                      </span>
+                    )}
                     {exp.tier && <span className="text-[9px] font-medium text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">{exp.tier}</span>}
                     {exp.isNeed ? (
                       <span className="text-[9px] font-medium text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Need</span>

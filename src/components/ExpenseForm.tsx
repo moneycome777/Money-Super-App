@@ -94,7 +94,8 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
           finalRestaurant,
           finalTier,
           formData.category === 'Pet' ? (formData.petCategory || 'Food') : '',
-          formData.category === 'Pet' && formData.nextDueDate ? formData.nextDueDate : ''
+          formData.category === 'Pet' && formData.nextDueDate ? formData.nextDueDate : '',
+          formData.isFunded || false
         ]]
       };
 
@@ -400,11 +401,19 @@ export const ExpenseForm: React.FC<{ onClose: () => void, initialExpense?: Expen
               icon={Target}
             />
             <Toggle 
-              label="UOB One"
+              label="Credit Card"
               active={formData.paymentMethod === 'UOB_ONE'}
-              onClick={() => setFormData({ ...formData, paymentMethod: formData.paymentMethod === 'UOB_ONE' ? 'CASH/OTHER' : 'UOB_ONE' })}
+              onClick={() => setFormData({ ...formData, paymentMethod: formData.paymentMethod === 'UOB_ONE' ? 'CASH/OTHER' : 'UOB_ONE', isFunded: formData.paymentMethod === 'UOB_ONE' ? false : formData.isFunded })}
               icon={CreditCard}
             />
+            {formData.paymentMethod === 'UOB_ONE' && (
+              <Toggle 
+                label="Funded"
+                active={formData.isFunded || false}
+                onClick={() => setFormData({ ...formData, isFunded: !formData.isFunded })}
+                icon={DollarSign}
+              />
+            )}
             <Toggle 
               label="Shared"
               active={formData.sharedFlag}
