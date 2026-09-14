@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Expense, UOBCycle, DashboardStats, LifeLogEntry, VaultEntry, FitnessEntry, InsightEntry, MonthlyInsightSummary, PetLogEntry, WealthLogEntry, WealthConfig, StockPriceData } from '../types';
+import { Expense, UOBCycle, DashboardStats, LifeLogEntry, VaultEntry, FitnessEntry, InsightEntry, MonthlyInsightSummary, PetLogEntry, WealthLogEntry, WealthConfig, StockPriceData , PetHealthEntry } from '../types';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -72,6 +72,11 @@ interface AppState {
   updateWealthLog: (rowIndex: number, entry: WealthLogEntry) => Promise<void>;
   deleteWealthLog: (rowIndex: number) => Promise<void>;
   fetchWealthConfigs: () => Promise<void>;
+  
+  petHealth: PetHealthEntry[];
+  hasFetchedPetHealth: boolean;
+  fetchPetHealth: () => Promise<void>;
+  updatePetHealth: (rowIndex: number, lastConsumed: string) => Promise<void>;
   updateWealthConfig: (key: string, value: string) => Promise<void>;
   fetchStockPrice: (symbol: string) => Promise<StockPriceData | null>;
   fetchCategories: () => Promise<void>;
@@ -101,6 +106,8 @@ export const useStore = create<AppState>()(
       hasFetchedWealthLogs: false,
       wealthConfigs: {},
       hasFetchedWealthConfigs: false,
+      petHealth: [],
+      hasFetchedPetHealth: false,
       categories: ['Food', 'Transport', 'Groceries', 'Entertainment', 'Bills', 'Investment', 'Others'],
       foodTypes: [],
       restaurants: [],
@@ -619,6 +626,54 @@ export const useStore = create<AppState>()(
           get().fetchWealthLogs();
         } catch (error) {
           console.error("Failed to delete wealth log", error);
+        }
+      },
+
+      fetchPetHealth: async () => {
+        if (get().hasFetchedPetHealth) return;
+        const pin = get().appPin;
+        if (!pin) return;
+        
+        try {
+          const response = await fetch('/api/pet-health', {
+            headers: { 'x-app-pin': pin }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            set({ petHealth: data, hasFetchedPetHealth: true });
+          }
+        } catch (error) {
+          console.error("Failed to fetch pet health:", error);
+        }
+      },
+
+      updatePetHealth: async (rowIndex: number, lastConsumed: string) => {
+        const pin = get().appPin;
+        if (!pin) return;
+        
+        set({ isLoading: true });
+        try {
+          const response = await fetch(`/api/pet-health/${rowIndex}`, {
+            method: 'PUT',
+            headers: { 
+              'Content-Type': 'application/json',
+              'x-app-pin': pin 
+            },
+            body: JSON.stringify({ lastConsumed })
+          });
+          
+          if (response.ok) {
+            set((state) => ({
+              petHealth: state.petHealth.map(item => 
+                item.rowIndex === rowIndex ? { ...item, lastConsumed } : item
+              )
+            }));
+          }
+        } catch (error) {
+          console.error("Failed to update pet health:", error);
+        } finally {
+          set({ isLoading: false });
         }
       },
 

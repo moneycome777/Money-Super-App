@@ -132,3 +132,11 @@ export interface StockPriceData {
   changePercent: number;
   lastUpdated: string;
 }
+
+export interface PetHealthEntry {
+  id?: string;
+  rowIndex?: number;
+  type: string;
+  lastConsumed: string;
+  frequencyMonths: number;
+}

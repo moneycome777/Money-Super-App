@@ -1,15 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Heart, AlertCircle, Calendar, RefreshCw, Syringe, Box, Clock, ChevronRight } from 'lucide-react';
+import { Plus, Heart, AlertCircle, Calendar, RefreshCw, Syringe, Box, Clock, ChevronRight, Activity, Pill, CheckCircle2 } from 'lucide-react';
 import { ExpenseForm } from './ExpenseForm';
 import { PetHistoryModal } from './PetHistoryModal';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { startOfMonth, endOfMonth, subMonths, format, startOfWeek, endOfWeek, subWeeks, isWithinInterval, differenceInDays, addDays } from 'date-fns';
 
 export const PetDashboard: React.FC = () => {
-  const { expenses, isLoading } = useStore();
+  const { expenses, isLoading, petHealth, fetchPetHealth, updatePetHealth, fetchExpenses } = useStore();
   const [isAdding, setIsAdding] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState<{rowIndex: number, date: string, type: string} | null>(null);
+
+  useEffect(() => {
+    fetchPetHealth();
+  }, [fetchPetHealth]);
+
+  const handleHealthCheck = (rowIndex: number, date: string) => {
+    updatePetHealth(rowIndex, date);
+    setShowDatePicker(null);
+  };
   const [showHistory, setShowHistory] = useState(false);
   const [trendView, setTrendView] = useState<'monthly' | 'weekly'>('monthly');
 
@@ -30,6 +40,28 @@ export const PetDashboard: React.FC = () => {
     ...p,
     daysUntil: Math.ceil((new Date(p.nextDueDate!).getTime() - new Date().getTime()) / (1000 * 3600 * 24))
   })).sort((a, b) => a.daysUntil - b.daysUntil);
+
+  const healthItems = petHealth.map(item => {
+    const lastDate = new Date(item.lastConsumed);
+    const nextDate = new Date(lastDate);
+    nextDate.setMonth(nextDate.getMonth() + item.frequencyMonths);
+    const daysUntil = Math.ceil((nextDate.getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+    
+    let statusColor = 'text-gray-400 bg-gray-500/10 border-gray-500/20';
+    let iconColor = 'text-gray-400';
+    if (daysUntil < 0) {
+      statusColor = 'text-red-400 bg-red-500/10 border-red-500/20';
+      iconColor = 'text-red-400';
+    } else if (daysUntil <= 14) {
+      statusColor = 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
+      iconColor = 'text-yellow-400';
+    } else {
+      statusColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      iconColor = 'text-emerald-400';
+    }
+    
+    return { ...item, nextDate, daysUntil, statusColor, iconColor };
+  }).sort((a, b) => a.daysUntil - b.daysUntil);
 
   // Compute Trends Data
   const getStatsForInterval = (start: Date, end: Date) => {
@@ -123,10 +155,14 @@ export const PetDashboard: React.FC = () => {
             Pet Care <Heart className="text-pink-500 fill-pink-500/20" size={24} />
           </h2>
           <button 
-            disabled={true}
-            className="w-10 h-10 bg-white/[0.03] border border-white/[0.08] backdrop-blur-md rounded-full flex items-center justify-center text-white/50 opacity-50"
+            onClick={() => {
+              fetchExpenses();
+              fetchPetHealth();
+            }}
+            disabled={isLoading}
+            className={`w-10 h-10 bg-white/[0.03] border border-white/[0.08] backdrop-blur-md rounded-full flex items-center justify-center transition-colors ${isLoading ? 'text-white/30' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
-            <RefreshCw size={18} strokeWidth={1.5} />
+            <RefreshCw size={18} strokeWidth={1.5} className={isLoading ? 'animate-spin' : ''} />
           </button>
         </div>
 
@@ -139,6 +175,43 @@ export const PetDashboard: React.FC = () => {
             <p className="text-sm font-medium text-pink-400 mb-1">Total Spent This Month</p>
             <p className="text-4xl font-semibold text-white tracking-tight">RM {totalSpentMonth.toFixed(2)}</p>
           </div>
+
+          {/* Health Actions Widget */}
+          {petHealth.length > 0 && (
+            <div className="bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/[0.08] p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-white/50 px-1">
+                <Activity size={14} className="text-pink-400" />
+                <span className="text-[11px] font-medium uppercase tracking-wider">Health Actions Checklist</span>
+              </div>
+              <div className="space-y-2">
+                {healthItems.map((item, i) => (
+                  <div key={i} className="bg-white/[0.02] p-3 rounded-xl border border-white/[0.05] flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40">
+                        {item.type.toLowerCase().includes('pill') || item.type.toLowerCase().includes('deworm') || item.type.toLowerCase().includes('kutu') ? <Pill size={14} /> : <Syringe size={14} />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">{item.type}</p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider ${item.statusColor}`}>
+                            {item.daysUntil < 0 ? 'Overdue' : item.daysUntil <= 14 ? 'Due Soon' : 'Due'} {format(item.nextDate, 'd MMM')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 relative">
+                      <button 
+                        onClick={() => setShowDatePicker({ rowIndex: item.rowIndex!, date: format(new Date(), 'yyyy-MM-dd'), type: item.type })}
+                        className="p-2.5 bg-white/5 rounded-full text-white/40 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors border border-white/5"
+                      >
+                        <CheckCircle2 size={18} strokeWidth={1.5} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Consumables Tracker Widget */}
           <div className="bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/[0.08] p-4 flex flex-col gap-3">
@@ -311,6 +384,48 @@ export const PetDashboard: React.FC = () => {
       </div>
 
       <AnimatePresence>
+        {showDatePicker && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            >
+              <h3 className="text-lg font-semibold text-white mb-2">Complete Action</h3>
+              <p className="text-sm text-white/50 mb-6">When did you administer {showDatePicker.type}?</p>
+              
+              <div className="mb-6">
+                <input 
+                  type="date"
+                  value={showDatePicker.date}
+                  onChange={(e) => setShowDatePicker({ ...showDatePicker, date: e.target.value })}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50"
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowDatePicker(null)}
+                  className="flex-1 py-3 px-4 rounded-xl font-medium text-white/60 bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => handleHealthCheck(showDatePicker.rowIndex, showDatePicker.date)}
+                  className="flex-1 py-3 px-4 rounded-xl font-medium text-white bg-emerald-600 hover:bg-emerald-500 transition-colors"
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
         {isAdding && <ExpenseForm initialExpense={{
           date: new Date().toISOString().split('T')[0],
           amount: 0,
