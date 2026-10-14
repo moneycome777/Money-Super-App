@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Expense, UOBCycle, DashboardStats, LifeLogEntry, VaultEntry, FitnessEntry, InsightEntry, MonthlyInsightSummary, PetLogEntry, WealthLogEntry, WealthConfig, StockPriceData , PetHealthEntry } from '../types';
+import { safeParseDate } from '../utils';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -75,7 +76,7 @@ interface AppState {
   
   petHealth: PetHealthEntry[];
   hasFetchedPetHealth: boolean;
-  fetchPetHealth: () => Promise<void>;
+  fetchPetHealth: (force?: boolean) => Promise<void>;
   updatePetHealth: (rowIndex: number, lastConsumed: string) => Promise<void>;
   updateWealthConfig: (key: string, value: string) => Promise<void>;
   fetchStockPrice: (symbol: string) => Promise<StockPriceData | null>;
@@ -629,8 +630,8 @@ export const useStore = create<AppState>()(
         }
       },
 
-      fetchPetHealth: async () => {
-        if (get().hasFetchedPetHealth) return;
+      fetchPetHealth: async (force = false) => {
+        if (get().hasFetchedPetHealth && !force) return;
         const pin = get().appPin;
         if (!pin) return;
         
@@ -854,9 +855,10 @@ export const useStore = create<AppState>()(
         const monthEnd = endOfMonth(now);
         const uobCycle = get().getUOBCycle();
 
-        return expenses.reduce((acc, exp) => {
-          const expDate = new Date(exp.date + 'T00:00:00');
-          const isCurrentMonth = isWithinInterval(expDate, { start: monthStart, end: monthEnd });
+        return (Array.isArray(expenses) ? expenses : []).reduce((acc, exp) => {
+          if (!exp) return acc;
+          const expDate = safeParseDate(exp.date);
+          const isCurrentMonth = expDate ? isWithinInterval(expDate, { start: monthStart, end: monthEnd }) : false;
           
           // All-time receivables
           if (exp.isReimbursable) {
@@ -883,7 +885,7 @@ export const useStore = create<AppState>()(
           }
 
           // UOB Spent (Current UOB Cycle)
-          if (isWithinInterval(expDate, { start: uobCycle.start, end: uobCycle.end }) && exp.paymentMethod === 'UOB_ONE') {
+          if (expDate && isWithinInterval(expDate, { start: uobCycle.start, end: uobCycle.end }) && exp.paymentMethod === 'UOB_ONE') {
             acc.uobSpent += exp.amount;
           }
 

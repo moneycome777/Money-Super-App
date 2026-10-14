@@ -139,4 +139,5 @@ export interface PetHealthEntry {
   type: string;
   lastConsumed: string;
   frequencyMonths: number;
+  frequency?: string;
 }

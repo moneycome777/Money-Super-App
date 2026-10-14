@@ -843,38 +843,72 @@ app.get("/api/pet-health", requirePin, async (req, res) => {
       range: `pet_health!A:C`,
     });
     
-    let data = [];
-    if (response.data.values && response.data.values.length > 1) {
-      data = response.data.values.slice(1).map((row, index) => ({
-        rowIndex: index + 2,
-        type: row[0],
-        lastConsumed: row[1] || '',
-        frequencyMonths: parseFloat(row[2]) || 0
-      }));
-    } else {
-      // Seed default data if empty
-      const defaultData = [
-        ["Deworm", "2026-09-13", "3"],
-        ["Kutu", "2026-09-13", "1"],
-        ["Heart Pill", "2026-08-20", "1"],
-        ["Vaccine", "2026-06-30", "12"]
-      ];
+    const values = response.data.values || [];
+    let data: any[] = [];
+
+    const defaultItems = [
+      { type: "Deworm", date: "2026-09-13", freq: "3" },
+      { type: "Kutu", date: "2026-09-13", freq: "1" },
+      { type: "Heart Pill", date: "2026-08-20", freq: "1" },
+      { type: "Vaccine", date: "2026-06-30", freq: "12" },
+      { type: "Basic Grooming", date: "2026-10-02", freq: "3 weeks" },
+      { type: "Full Grooming", date: "", freq: "3" }
+    ];
+
+    if (values.length <= 1) {
+      // Seed all default data if empty
+      const defaultData = defaultItems.map(item => [item.type, item.date, item.freq]);
       await sheets.spreadsheets.values.append({
         spreadsheetId: process.env.GOOGLE_SHEET_ID,
         range: `pet_health!A:C`,
         valueInputOption: "USER_ENTERED",
         requestBody: { values: defaultData },
       });
-      data = defaultData.map((row, index) => ({
+      data = defaultItems.map((item, index) => ({
         rowIndex: index + 2,
-        type: row[0],
-        lastConsumed: row[1],
-        frequencyMonths: parseFloat(row[2])
+        type: item.type,
+        lastConsumed: item.date,
+        frequencyMonths: parseFloat(item.freq) || 0,
+        frequency: item.freq
       }));
+    } else {
+      // Read existing rows
+      data = values.slice(1).map((row, index) => ({
+        rowIndex: index + 2,
+        type: row[0] || '',
+        lastConsumed: row[1] || '',
+        frequencyMonths: parseFloat(row[2]) || 0,
+        frequency: row[2] || ''
+      }));
+
+      // Check if any default items are missing (e.g. Basic Grooming, Full Grooming)
+      const existingTypes = new Set(data.map(d => (d.type || '').toLowerCase().trim()));
+      const missingItems = defaultItems.filter(item => !existingTypes.has(item.type.toLowerCase().trim()));
+
+      if (missingItems.length > 0) {
+        const rowsToAppend = missingItems.map(item => [item.type, item.date, item.freq]);
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: process.env.GOOGLE_SHEET_ID,
+          range: `pet_health!A:C`,
+          valueInputOption: "USER_ENTERED",
+          requestBody: { values: rowsToAppend },
+        });
+
+        const startRowIndex = values.length + 1;
+        missingItems.forEach((item, idx) => {
+          data.push({
+            rowIndex: startRowIndex + idx,
+            type: item.type,
+            lastConsumed: item.date,
+            frequencyMonths: parseFloat(item.freq) || 0,
+            frequency: item.freq
+          });
+        });
+      }
     }
     
     res.json(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Sheets error:", error.message || error);
     res.status(500).json({ error: "Failed to fetch pet health data", details: error.message });
   }

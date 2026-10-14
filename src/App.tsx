@@ -12,6 +12,7 @@ import { Shield, Lock, LogIn, KeyRound, Home, PieChart, Plus, RefreshCw, Compass
 import { ExpenseForm } from './components/ExpenseForm';
 import { ActionMenu } from './components/ActionMenu';
 import { InsightModal } from './components/InsightModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
   const { 
@@ -169,7 +170,11 @@ export default function App() {
         {activeTab === 'home' && <Dashboard onNavigate={setActiveTab as any} />}
         {activeTab === 'analysis' && <Analysis />}
         {activeTab === 'transactions' && <Transactions />}
-        {activeTab === 'pet' && <PetDashboard />}
+        {activeTab === 'pet' && (
+          <ErrorBoundary fallbackTitle="Pet Care Unavailable" onReset={() => setActiveTab('home')}>
+            <PetDashboard />
+          </ErrorBoundary>
+        )}
         {activeTab === 'discovery' && <Discovery />}
         {activeTab === 'lifelog' && <LifeLog />}
       </div>

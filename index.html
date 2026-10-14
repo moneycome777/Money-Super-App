@@ -6,10 +6,24 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#030303" />
     <title>Expense SuperApp</title>
+    <script>
+      // Unregister any stale service workers and clear cache immediately
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            registrations[i].unregister();
+          }
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(keys) {
+          keys.forEach(function(key) { caches.delete(key); });
+        });
+      }
+    </script>
   </head>
   <body class="bg-[#030303] text-white antialiased selection:bg-blue-500/30">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
